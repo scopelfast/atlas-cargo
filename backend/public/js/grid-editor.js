@@ -17,13 +17,14 @@
  * grid.render(data);
  */
 
-// Verificar se já foi carregado para evitar erro de declaração duplicada
-if (typeof window === 'undefined' || typeof window.GridEditor === 'undefined') {
+// IIFE: sempre reatribui window.GridEditor (cache-bust / troca de módulo atualiza o comportamento).
+(function (global) {
+  if (!global) return;
   // Aplicar mensagem padrão global para confirmação de exclusão.
   // Módulos e o próprio GridEditor podem sobrescrever definindo `window.APP_CONFIRM_DELETE_MESSAGE`.
   try {
-    if (typeof window !== 'undefined' && typeof window.APP_CONFIRM_DELETE_MESSAGE === 'undefined') {
-      window.APP_CONFIRM_DELETE_MESSAGE = 'Tem certeza que deseja desativar esta situação?';
+    if (typeof global.APP_CONFIRM_DELETE_MESSAGE === 'undefined') {
+      global.APP_CONFIRM_DELETE_MESSAGE = 'Tem certeza que deseja desativar esta situação?';
     }
   } catch (e) {}
 
@@ -392,7 +393,7 @@ if (typeof window === 'undefined' || typeof window.GridEditor === 'undefined') {
     const allowDelete = !this.canDeleteRow || this.canDeleteRow(row);
     const deleteCell = allowDelete
       ? '<button type="button" class="btn grid-btn-delete" title="Excluir">🗑</button>'
-      : '<span class="grid-no-delete" title="Exclusão não permitida para este registro">—</span>';
+      : '';
     const editDelete = `
       <button type="button" class="btn grid-btn-edit" title="Editar">✎</button>
       ${deleteCell}
@@ -826,11 +827,10 @@ if (typeof window === 'undefined' || typeof window.GridEditor === 'undefined') {
 
   // Expor globalmente para garantir disponibilidade em todos os módulos e carregamentos dinâmicos
   try {
-    if (typeof window !== 'undefined') {
-      window.GridEditor = GridEditor;
-      window._gridEditorLoaded = true;
-    }
+    global.GridEditor = GridEditor;
+    global._gridEditorLoaded = true;
+    global._gridEditorVersion = '20261127noDash';
   } catch (e) {
-    try { console.error('[GridEditor] exposure error', e); } catch(err) {}
+    try { console.error('[GridEditor] exposure error', e); } catch (err) {}
   }
-}
+})(typeof window !== 'undefined' ? window : undefined);

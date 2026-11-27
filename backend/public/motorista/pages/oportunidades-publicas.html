@@ -654,6 +654,9 @@
             else aplicarEstadoCard(card, prevSt);
             return;
           }
+          if (d.warning && d.warning.message) {
+            showToast(d.warning.message, 'info');
+          }
           if (d.unchanged) {
             if (d.localizacaoAtualizada) {
               showToast(t('oportunidadesPublicas.toastLocalAtualizada'), 'ok');

@@ -138,7 +138,7 @@ const relatorioController = {
             THEN 'S' ELSE 'N'
           END AS [VIAGEM_CONFIRMADA]
         FROM [dbo].[CONVOCACAO] [conv]
-        LEFT JOIN [dbo].[CADASTROGERAL] [cg] ON [conv].[CDCADASTRO_MOTORISTA] = [cg].[CDCADASTRO] AND [cg].[TENANT_ID] = [conv].[TENANT_ID]
+        LEFT JOIN [dbo].[CADASTROGERAL] [cg] ON [conv].[CDCADASTRO_MOTORISTA] = [cg].[CDCADASTRO]
         LEFT JOIN [dbo].[VIAGEMMESTRE] [v] ON [conv].[IDVIAGEM] = [v].[IDVIAGEM] AND [conv].[TENANT_ID] = [v].[TENANT_ID]
         LEFT JOIN [dbo].[ROTEIRO] [r] ON [v].[IDROTEIRO] = [r].[IDROTEIRO] AND ([r].[TENANT_ID] = [v].[TENANT_ID] OR [r].[TENANT_ID] = 'default')
         LEFT JOIN [dbo].[CIDADE] [co] ON [r].[CDCIDADEORIGEM] = [co].[CDCIDADE]
@@ -201,7 +201,7 @@ const relatorioController = {
       if ((motorista && isNaN(motorista)) || (contratador && isValidValue(contratador))) {
         let joins = [];
         if (motorista && isNaN(motorista)) {
-          joins.push('LEFT JOIN [dbo].[CADASTROGERAL] [cg] ON [conv].[CDCADASTRO_MOTORISTA] = [cg].[CDCADASTRO] AND [cg].[TENANT_ID] = [conv].[TENANT_ID]');
+          joins.push('LEFT JOIN [dbo].[CADASTROGERAL] [cg] ON [conv].[CDCADASTRO_MOTORISTA] = [cg].[CDCADASTRO]');
         }
         if (contratador && isValidValue(contratador)) {
           joins.push('LEFT JOIN [dbo].[VIAGEMMESTRE] [v] ON [conv].[IDVIAGEM] = [v].[IDVIAGEM] AND [conv].[TENANT_ID] = [v].[TENANT_ID]');
@@ -244,7 +244,7 @@ const relatorioController = {
       if ((motorista && isNaN(motorista)) || (contratador && isValidValue(contratador))) {
         let joins = [];
         if (motorista && isNaN(motorista)) {
-          joins.push('LEFT JOIN [dbo].[CADASTROGERAL] [cg] ON [conv].[CDCADASTRO_MOTORISTA] = [cg].[CDCADASTRO] AND [cg].[TENANT_ID] = [conv].[TENANT_ID]');
+          joins.push('LEFT JOIN [dbo].[CADASTROGERAL] [cg] ON [conv].[CDCADASTRO_MOTORISTA] = [cg].[CDCADASTRO]');
         }
         if (contratador && isValidValue(contratador)) {
           joins.push('LEFT JOIN [dbo].[VIAGEMMESTRE] [v] ON [conv].[IDVIAGEM] = [v].[IDVIAGEM] AND [conv].[TENANT_ID] = [v].[TENANT_ID]');

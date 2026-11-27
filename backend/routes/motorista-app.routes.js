@@ -201,6 +201,7 @@ router.post(
 
 // Convocações
 router.get('/convocacoes/:idmotorista', motoristaAppController.minhasConvocacoes);
+router.get('/situacao-financeira', motoristaAppController.situacaoFinanceira);
 router.post('/confirmar-placas-convocacao/:id', motoristaAppController.confirmarPlacasConvocacao);
 router.post('/aceitar-convocacao/:id', motoristaAppController.aceitarConvocacao);
 router.post('/recusar-convocacao/:id', motoristaAppController.recusarConvocacao);

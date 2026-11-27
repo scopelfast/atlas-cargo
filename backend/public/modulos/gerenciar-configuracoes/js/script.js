@@ -57,28 +57,74 @@
     return h;
   }
 
-  function showMessage(text, type) {
-    // Padrão do sistema: toast no topo (como Gerenciar Usuários)
+
+  function toastMsg(text, type) {
+    const msg = text == null ? '' : String(text).trim();
+    if (!msg) return;
+    const kind = type === 'info' ? 'success' : (type || 'success');
     if (typeof window.showMessage === 'function') {
-      window.showMessage(text, type);
-    }
-    // Banner local abaixo dos botões (sempre visível)
-    if (messageEl) {
-      messageEl.textContent = text;
-      messageEl.className = 'message show ' + (type === 'success' ? 'success' : type === 'error' ? 'error' : 'info');
-      messageEl.style.display = 'block';
-      messageEl.setAttribute('aria-live', 'polite');
+      window.showMessage(msg, kind, false);
     }
   }
 
-  async function carregar() {
+  function hideCardMessages() {
+    document.querySelectorAll('.configuracoes-container .message, #testResultMessage').forEach((el) => {
+      el.textContent = '';
+      el.className = 'message';
+      el.style.display = 'none';
+    });
+  }
+
+  function showLoadingOverlay(titulo, texto) {
+    const overlay = document.getElementById('loadingOverlay');
+    const loadingTitle = document.getElementById('loadingTitle');
+    const loadingText = document.getElementById('loadingText');
+    if (!overlay) return;
+    if (loadingTitle) loadingTitle.textContent = titulo || 'Processando';
+    if (loadingText) loadingText.textContent = texto || 'Aguarde...';
+    if (overlay.parentNode !== document.body) document.body.appendChild(overlay);
+    overlay.style.cssText = 'display:flex !important; position:fixed !important; top:0; left:0; right:0; bottom:0; z-index:99999; background:rgba(0,0,0,0.75); align-items:center; justify-content:center;';
+  }
+
+  function hideLoadingOverlay() {
+    const overlay = document.getElementById('loadingOverlay');
+    if (!overlay) return;
+    overlay.style.display = 'none';
+    const contentArea = document.getElementById('contentArea');
+    if (overlay.parentNode === document.body && contentArea && contentArea.querySelector('.configuracoes-container')) {
+      contentArea.insertBefore(overlay, contentArea.firstChild);
+    }
+  }
+
+  async function yieldPaint() {
+    await new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)));
+  }
+
+  function setGridCount(spanId, n) {
+    const el = document.getElementById(spanId);
+    if (el) el.textContent = String(n) + ' registro(s) encontrado(s)';
+  }
+
+  function ensureGrid(containerSel, existing, factory) {
+    if (existing) return existing;
+    if (typeof window.GridEditor === 'undefined') return null;
+    return factory();
+  }
+
+  let gridLogSenha = null;
+
+  function showMessage(text, type) {
+    toastMsg(text, type);
+  }
+
+  async function carregar(silent) {
     try {
       const res = await fetch('/api/configuracoes/mapa');
       const data = await res.json();
       if (res.ok) {
         if (nominatimEl) nominatimEl.value = data.nominatimServer || '';
         if (osrmEl) osrmEl.value = data.osrmServer || '';
-        showMessage(t('web.modulos.configuracoes.configuracoesCarregadas'), 'success');
+        if (!silent) showMessage(t('web.modulos.configuracoes.configuracoesCarregadas'), 'success');
       } else {
         showMessage(data.error || t('web.modulos.configuracoes.erroSalvar'), 'error');
       }
@@ -91,6 +137,8 @@
   async function salvar() {
     if (salvando) return;
     salvando = true;
+    showLoadingOverlay('Salvando', 'Salvando configurações de mapa...');
+    await yieldPaint();
     if (btnSalvar) {
       btnSalvar.disabled = true;
       if (btnSalvarText) btnSalvarText.textContent = (typeof window.tWeb === 'function' ? (window.tWeb('web.common.salvando') || 'Salvando...') : 'Salvando...');
@@ -122,6 +170,7 @@
     } catch (err) {
       showMessage(t('web.modulos.configuracoes.erroSalvar'), 'error');
     } finally {
+      hideLoadingOverlay();
       salvando = false;
       if (btnSalvar) {
         btnSalvar.disabled = false;
@@ -131,19 +180,13 @@
   }
 
   if (btnSalvar) btnSalvar.addEventListener('click', salvar);
-  if (btnCarregar) btnCarregar.addEventListener('click', carregar);
-  carregar();
+  if (btnCarregar) btnCarregar.addEventListener('click', function () { carregar(false); });
+  carregar(true);
 
   function showContextoMessage(text, type) {
-    if (typeof window.showMessage === 'function') window.showMessage(text, type);
-    if (messageContextoEl) {
-      messageContextoEl.textContent = text;
-      messageContextoEl.className = 'message show ' + (type === 'success' ? 'success' : type === 'error' ? 'error' : 'info');
-      messageContextoEl.style.display = 'block';
-      messageContextoEl.setAttribute('aria-live', 'polite');
-    }
+    toastMsg(text, type);
   }
-  async function carregarContexto() {
+  async function carregarContexto(silent) {
     try {
       const res = await fetch('/api/contexto');
       const data = await res.json();
@@ -153,7 +196,7 @@
       if (contextoTimezone) contextoTimezone.value = data.timezone || 'America/Sao_Paulo';
       if (contextoTipoDocFisica) contextoTipoDocFisica.value = data.tipoDocFisica || 'CPF';
       if (contextoTipoDocJuridica) contextoTipoDocJuridica.value = data.tipoDocJuridica || 'CNPJ';
-      showContextoMessage(t('web.modulos.configuracoes.configuracoesCarregadas'), 'success');
+      if (!silent) showContextoMessage(t('web.modulos.configuracoes.configuracoesCarregadas'), 'success');
     } catch (err) {
       showContextoMessage(t('web.modulos.configuracoes.erroSalvar'), 'error');
     }
@@ -162,6 +205,8 @@
   async function salvarContexto() {
     if (salvandoContexto) return;
     salvandoContexto = true;
+    showLoadingOverlay('Salvando', 'Salvando contexto...');
+    await yieldPaint();
     if (btnSalvarContexto) {
       btnSalvarContexto.disabled = true;
       if (btnSalvarContextoText) btnSalvarContextoText.textContent = (typeof window.tWeb === 'function' ? (window.tWeb('web.common.salvando') || 'Salvando...') : 'Salvando...');
@@ -189,6 +234,7 @@
     } catch (err) {
       showContextoMessage(t('web.modulos.configuracoes.erroSalvar'), 'error');
     } finally {
+      hideLoadingOverlay();
       salvandoContexto = false;
       if (btnSalvarContexto) {
         btnSalvarContexto.disabled = false;
@@ -197,8 +243,8 @@
     }
   }
   if (btnSalvarContexto) btnSalvarContexto.addEventListener('click', salvarContexto);
-  if (btnCarregarContexto) btnCarregarContexto.addEventListener('click', carregarContexto);
-  carregarContexto();
+  if (btnCarregarContexto) btnCarregarContexto.addEventListener('click', function () { carregarContexto(false); });
+  carregarContexto(true);
 
   // Switch Digital
   const switchEndpointEl = document.getElementById('switchEndpoint');
@@ -209,6 +255,7 @@
   const switchQueueIdEl = document.getElementById('switchQueueId');
   const switchSendSignatureEl = document.getElementById('switchSendSignature');
   const switchCloseTicketEl = document.getElementById('switchCloseTicket');
+  const whatsappDestinoSuporteEl = document.getElementById('whatsappDestinoSuporte');
   
   const btnSalvarSwitch = document.getElementById('btnSalvarSwitch');
   const btnCarregarSwitch = document.getElementById('btnCarregarSwitch');
@@ -219,32 +266,11 @@
   const testResultMessageEl = document.getElementById('testResultMessage');
 
   function showSwitchMessage(text, type) {
-    if (typeof window.showMessage === 'function') window.showMessage(text, type);
-    if (messageSwitchEl) {
-      messageSwitchEl.textContent = text;
-      messageSwitchEl.className = 'message show ' + (type === 'success' ? 'success' : type === 'error' ? 'error' : 'info');
-      messageSwitchEl.style.display = 'block';
-    }
+    toastMsg(text, type);
   }
 
   function showTestMessage(text, type) {
-    if (testResultMessageEl) {
-      testResultMessageEl.textContent = text;
-      testResultMessageEl.style.display = 'block';
-      if (type === 'success') {
-        testResultMessageEl.style.backgroundColor = '#d1e7dd';
-        testResultMessageEl.style.color = '#0f5132';
-        testResultMessageEl.style.border = '1px solid #badbcc';
-      } else if (type === 'error') {
-        testResultMessageEl.style.backgroundColor = '#f8d7da';
-        testResultMessageEl.style.color = '#842029';
-        testResultMessageEl.style.border = '1px solid #f5c2c7';
-      } else {
-        testResultMessageEl.style.backgroundColor = '#cff4fc';
-        testResultMessageEl.style.color = '#055160';
-        testResultMessageEl.style.border = '1px solid #b6effb';
-      }
-    }
+    toastMsg(text, type);
   }
 
   async function carregarSwitch() {
@@ -260,6 +286,7 @@
         if (switchQueueIdEl) switchQueueIdEl.value = data.switchQueueId || '';
         if (switchSendSignatureEl) switchSendSignatureEl.checked = data.switchSendSignature === 'S';
         if (switchCloseTicketEl) switchCloseTicketEl.checked = data.switchCloseTicket !== 'N'; // Padrão S (true)
+        if (whatsappDestinoSuporteEl) whatsappDestinoSuporteEl.value = data.whatsappDestinoSuporte || '';
       } else {
         showSwitchMessage(data.error || 'Erro ao carregar Switch Digital', 'error');
       }
@@ -272,6 +299,8 @@
   async function salvarSwitch() {
     if (salvandoSwitch) return;
     salvandoSwitch = true;
+    showLoadingOverlay('Salvando', 'Salvando Switch Digital...');
+    await yieldPaint();
     if (btnSalvarSwitch) {
         btnSalvarSwitch.disabled = true;
         btnSalvarSwitch.innerHTML = '<i class="bx bx-loader bx-spin"></i> Salvando...';
@@ -289,7 +318,8 @@
           switchUserId: switchUserIdEl?.value?.trim() || '',
           switchQueueId: switchQueueIdEl?.value?.trim() || '',
           switchSendSignature: switchSendSignatureEl?.checked ? 'S' : 'N',
-          switchCloseTicket: switchCloseTicketEl?.checked ? 'S' : 'N'
+          switchCloseTicket: switchCloseTicketEl?.checked ? 'S' : 'N',
+          whatsappDestinoSuporte: whatsappDestinoSuporteEl?.value?.trim() || ''
         })
       });
       const data = await res.json();
@@ -301,6 +331,7 @@
     } catch (err) {
       showSwitchMessage('Erro ao salvar', 'error');
     } finally {
+      hideLoadingOverlay();
       salvandoSwitch = false;
       if (btnSalvarSwitch) {
           btnSalvarSwitch.disabled = false;
@@ -379,13 +410,7 @@
   carregarSwitch();
 
   function showIdentidadeMessage(text, type) {
-    if (typeof window.showMessage === 'function') window.showMessage(text, type);
-    if (messageIdentidadeEl) {
-      messageIdentidadeEl.textContent = text;
-      messageIdentidadeEl.className = 'message show ' + (type === 'success' ? 'success' : type === 'error' ? 'error' : 'info');
-      messageIdentidadeEl.style.display = 'block';
-      messageIdentidadeEl.setAttribute('aria-live', 'polite');
-    }
+    toastMsg(text, type);
   }
 
   function updatePreviews() {
@@ -497,6 +522,8 @@
   async function salvarIdentidade() {
     if (salvandoIdentidade) return;
     salvandoIdentidade = true;
+    showLoadingOverlay('Salvando', 'Salvando identidade...');
+    await yieldPaint();
     if (btnSalvarIdentidade) {
       btnSalvarIdentidade.disabled = true;
       if (btnSalvarIdentidadeText) btnSalvarIdentidadeText.textContent = (typeof window.tWeb === 'function' ? (window.tWeb('web.common.salvando') || 'Salvando...') : 'Salvando...');
@@ -525,6 +552,7 @@
     } catch (err) {
       showIdentidadeMessage(t('web.modulos.configuracoes.erroSalvar'), 'error');
     } finally {
+      hideLoadingOverlay();
       salvandoIdentidade = false;
       if (btnSalvarIdentidade) {
         btnSalvarIdentidade.disabled = false;
@@ -564,15 +592,10 @@
   const btnSalvarAlertas = document.getElementById('btnSalvarAlertas');
 
   function showAlertasMessage(text, type) {
-    if (typeof window.showMessage === 'function') window.showMessage(text, type);
-    if (messageAlertasEl) {
-      messageAlertasEl.textContent = text;
-      messageAlertasEl.className = 'message show ' + (type === 'success' ? 'success' : type === 'error' ? 'error' : 'info');
-      messageAlertasEl.style.display = text ? 'block' : 'none';
-    }
+    toastMsg(text, type);
   }
 
-  async function carregarAlertas() {
+  async function carregarAlertas(silent) {
     try {
       const res = await fetch('/api/configuracoes/alertas');
       const data = await res.json();
@@ -646,7 +669,7 @@
             'Filtro explícito: só entram viagens com FGSITVIAGEM igual a um dos códigos marcados. Se o job “não gera alertas”, confira se a viagem está em T, P, A, M, etc., conforme seu cadastro.';
         }
       }
-      showAlertasMessage('Configurações de alertas carregadas.', 'success');
+      if (!silent) showAlertasMessage('Configurações de alertas carregadas.', 'success');
     } catch (err) {
       showAlertasMessage('Erro ao carregar configurações de alertas.', 'error');
     }
@@ -657,6 +680,8 @@
   async function salvarAlertas() {
     if (salvandoAlertas) return;
     salvandoAlertas = true;
+    showLoadingOverlay('Salvando', 'Salvando alertas...');
+    await yieldPaint();
     if (btnSalvarAlertas) {
       btnSalvarAlertas.disabled = true;
       btnSalvarAlertas.innerHTML = '<i class="bx bx-loader bx-spin"></i> Salvando...';
@@ -747,6 +772,7 @@
     } catch (err) {
       showAlertasMessage('Erro ao salvar.', 'error');
     } finally {
+      hideLoadingOverlay();
       salvandoAlertas = false;
       if (btnSalvarAlertas) {
         btnSalvarAlertas.disabled = false;
@@ -755,9 +781,9 @@
     }
   }
 
-  if (btnCarregarAlertas) btnCarregarAlertas.addEventListener('click', carregarAlertas);
+  if (btnCarregarAlertas) btnCarregarAlertas.addEventListener('click', function () { carregarAlertas(false); });
   if (btnSalvarAlertas) btnSalvarAlertas.addEventListener('click', salvarAlertas);
-  carregarAlertas();
+  carregarAlertas(true);
 
   // Link do app motorista (mensagem de confirmação da convocação)
   const linkAppMotoristaEl = document.getElementById('linkAppMotorista');
@@ -767,20 +793,15 @@
   const messageAppMotoristaEl = document.getElementById('configAppMotoristaMessage');
 
   function showAppMotoristaMessage(text, type) {
-    if (typeof window.showMessage === 'function') window.showMessage(text, type);
-    if (messageAppMotoristaEl) {
-      messageAppMotoristaEl.textContent = text;
-      messageAppMotoristaEl.className = 'message show ' + (type === 'success' ? 'success' : type === 'error' ? 'error' : 'info');
-      messageAppMotoristaEl.style.display = 'block';
-    }
+    toastMsg(text, type);
   }
 
-  async function carregarAppMotorista() {
+  async function carregarAppMotorista(silent) {
     try {
       const res = await fetch('/api/configuracoes/app-motorista');
       const data = await res.json();
       if (linkAppMotoristaEl) linkAppMotoristaEl.value = data.linkAppMotorista || '';
-      if (res.ok) showAppMotoristaMessage(t('web.modulos.configuracoes.configuracoesCarregadas') || 'Configurações carregadas.', 'success');
+      if (res.ok && !silent) showAppMotoristaMessage(t('web.modulos.configuracoes.configuracoesCarregadas') || 'Configurações carregadas.', 'success');
     } catch (err) {
       showAppMotoristaMessage('Erro ao carregar.', 'error');
     }
@@ -790,6 +811,8 @@
   async function salvarAppMotorista() {
     if (salvandoAppMotorista) return;
     salvandoAppMotorista = true;
+    showLoadingOverlay('Salvando', 'Salvando link do app...');
+    await yieldPaint();
     if (btnSalvarAppMotorista) {
       btnSalvarAppMotorista.disabled = true;
       if (btnSalvarAppMotoristaText) btnSalvarAppMotoristaText.textContent = (typeof window.tWeb === 'function' ? (window.tWeb('web.common.salvando') || 'Salvando...') : 'Salvando...');
@@ -810,6 +833,7 @@
     } catch (err) {
       showAppMotoristaMessage('Erro ao salvar.', 'error');
     } finally {
+      hideLoadingOverlay();
       salvandoAppMotorista = false;
       if (btnSalvarAppMotorista) {
         btnSalvarAppMotorista.disabled = false;
@@ -819,8 +843,8 @@
   }
 
   if (btnSalvarAppMotorista) btnSalvarAppMotorista.addEventListener('click', salvarAppMotorista);
-  if (btnCarregarAppMotorista) btnCarregarAppMotorista.addEventListener('click', carregarAppMotorista);
-  carregarAppMotorista();
+  if (btnCarregarAppMotorista) btnCarregarAppMotorista.addEventListener('click', function () { carregarAppMotorista(false); });
+  carregarAppMotorista(true);
 
   // OpenAI — chave Whisper (transcrição no chat)
   const openaiApiKeyInput = document.getElementById('openaiApiKeyInput');
@@ -832,13 +856,7 @@
   const messageOpenAiEl = document.getElementById('configOpenAiMessage');
 
   function showOpenAiMessage(text, type) {
-    if (typeof window.showMessage === 'function') window.showMessage(text, type);
-    if (messageOpenAiEl) {
-      messageOpenAiEl.textContent = text;
-      messageOpenAiEl.className =
-        'message show ' + (type === 'success' ? 'success' : type === 'error' ? 'error' : 'info');
-      messageOpenAiEl.style.display = 'block';
-    }
+    toastMsg(text, type);
   }
 
   function renderOpenAiStatus(data) {
@@ -923,6 +941,7 @@
     } catch (err) {
       showOpenAiMessage('Erro ao salvar.', 'error');
     } finally {
+      hideLoadingOverlay();
       salvandoOpenAi = false;
       if (btnSalvarOpenAi) btnSalvarOpenAi.disabled = false;
       if (btnSalvarOpenAiText) btnSalvarOpenAiText.textContent = t('web.modulos.configuracoes.salvar') || 'Salvar';
@@ -972,9 +991,9 @@
   }
 
   if (btnSalvarOpenAi) btnSalvarOpenAi.addEventListener('click', salvarOpenAi);
-  if (btnCarregarOpenAi) btnCarregarOpenAi.addEventListener('click', carregarOpenAi);
+  if (btnCarregarOpenAi) btnCarregarOpenAi.addEventListener('click', function () { carregarOpenAi(false); });
   if (btnRemoverOpenAiBanco) btnRemoverOpenAiBanco.addEventListener('click', removerOpenAiDoBanco);
-  carregarOpenAi();
+  carregarOpenAi(true);
 
   // Mensagens WhatsApp – convocações (duas colunas: modelo + pré-visualização ao vivo)
   const msgConvDisparoEl = document.getElementById('msgConvDisparo');
@@ -1082,15 +1101,10 @@
   }
 
   function showMensagensConvocacaoMessage(text, type) {
-    if (typeof window.showMessage === 'function') window.showMessage(text, type);
-    if (messageMensagensConvocacaoEl) {
-      messageMensagensConvocacaoEl.textContent = text;
-      messageMensagensConvocacaoEl.className = 'message show ' + (type === 'success' ? 'success' : type === 'error' ? 'error' : 'info');
-      messageMensagensConvocacaoEl.style.display = 'block';
-    }
+    toastMsg(text, type);
   }
 
-  async function carregarMensagensConvocacao() {
+  async function carregarMensagensConvocacao(silent) {
     try {
       const res = await fetch('/api/configuracoes/mensagens-convocacao');
       const data = await res.json();
@@ -1107,7 +1121,7 @@
         }
         atualizarHintLinkAppExemplo(data);
         await atualizarTodasPreviewsMensagensConvocacao();
-        showMensagensConvocacaoMessage(t('web.modulos.configuracoes.configuracoesCarregadas') || 'Configurações carregadas.', 'success');
+        if (!silent) showMensagensConvocacaoMessage(t('web.modulos.configuracoes.configuracoesCarregadas') || 'Configurações carregadas.', 'success');
       } else {
         showMensagensConvocacaoMessage(data.error || 'Erro ao carregar.', 'error');
       }
@@ -1189,6 +1203,8 @@
   async function salvarMensagensConvocacao() {
     if (salvandoMensagensConvocacao || salvandoMensagemConvocacaoParcial) return;
     salvandoMensagensConvocacao = true;
+    showLoadingOverlay('Salvando', 'Salvando mensagens de convocação...');
+    await yieldPaint();
     if (btnSalvarMensagensConvocacao) {
       btnSalvarMensagensConvocacao.disabled = true;
       if (btnSalvarMensagensConvocacaoText) {
@@ -1225,6 +1241,7 @@
     } catch (err) {
       showMensagensConvocacaoMessage('Erro ao salvar.', 'error');
     } finally {
+      hideLoadingOverlay();
       salvandoMensagensConvocacao = false;
       if (btnSalvarMensagensConvocacao) {
         btnSalvarMensagensConvocacao.disabled = false;
@@ -1239,7 +1256,7 @@
   }
 
   if (btnSalvarMensagensConvocacao) btnSalvarMensagensConvocacao.addEventListener('click', salvarMensagensConvocacao);
-  if (btnCarregarMensagensConvocacao) btnCarregarMensagensConvocacao.addEventListener('click', carregarMensagensConvocacao);
+  if (btnCarregarMensagensConvocacao) btnCarregarMensagensConvocacao.addEventListener('click', function () { carregarMensagensConvocacao(false); });
 
   if (btnSalvarSecaoDisparo) btnSalvarSecaoDisparo.addEventListener('click', () => salvarMensagemConvocacaoParcial('disparo'));
   if (btnSalvarSecaoConfirmacaoSel) btnSalvarSecaoConfirmacaoSel.addEventListener('click', () => salvarMensagemConvocacaoParcial('confirmacaoSel'));
@@ -1289,12 +1306,7 @@
     tipoAtual: 'parada',
   };
   function showMensagensAlertasMessage(text, type) {
-    if (typeof window.showMessage === 'function') window.showMessage(text, type);
-    if (messageMensagensAlertasEl) {
-      messageMensagensAlertasEl.textContent = text;
-      messageMensagensAlertasEl.className = 'message show ' + (type === 'success' ? 'success' : type === 'error' ? 'error' : 'info');
-      messageMensagensAlertasEl.style.display = text ? 'block' : 'none';
-    }
+    toastMsg(text, type);
   }
 
   function commitMsgAlertCorpoParaCache() {
@@ -1406,6 +1418,8 @@
   async function salvarMensagensAlertas() {
     commitMsgAlertCorpoParaCache();
     if (btnMsgAlertSalvar) btnMsgAlertSalvar.disabled = true;
+    showLoadingOverlay('Salvando', 'Salvando modelos de alerta...');
+    await yieldPaint();
     try {
       const p = msgAlertCache.porTipo;
       const res = await fetch('/api/configuracoes/mensagens-alertas', {
@@ -1430,6 +1444,7 @@
     } catch (e) {
       showMensagensAlertasMessage('Erro ao salvar.', 'error');
     } finally {
+      hideLoadingOverlay();
       if (btnMsgAlertSalvar) btnMsgAlertSalvar.disabled = false;
     }
   }
@@ -1455,7 +1470,7 @@
 
   carregarMensagensAlertas({ silent: true });
 
-  carregarMensagensConvocacao();
+  carregarMensagensConvocacao(true);
 
   const ROTULOS_LOG_SENHA = {
     nao_encontrado: 'Não encontrado',
@@ -1487,10 +1502,10 @@
   }
 
   window.carregarLogRecuperacaoSenha = async function carregarLogRecuperacaoSenha() {
-    const corpo = document.getElementById('logSenhaCorpo');
-    if (!corpo) return;
-    corpo.innerHTML = '<tr><td colspan="6">Carregando...</td></tr>';
-    await new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)));
+    const wrap = document.getElementById('logSenhaGrid');
+    if (!wrap) return;
+    showLoadingOverlay('Carregando', 'Carregando log de recuperação de senha...');
+    await yieldPaint();
     const params = new URLSearchParams();
     const canal = document.getElementById('logSenhaCanal')?.value || '';
     const resultado = document.getElementById('logSenhaResultado')?.value || '';
@@ -1504,15 +1519,14 @@
       });
       const data = await resp.json().catch(() => ({}));
       if (!resp.ok) {
-        corpo.innerHTML = '<tr><td colspan="6">' + textoLogSenha(data.error || data.message || 'Não foi possível carregar.') + '</td></tr>';
+        setGridCount('logSenhaGridCountText', 0);
+        wrap.innerHTML = '<p class="empty">' + textoLogSenha(data.error || data.message || 'Não foi possível carregar.') + '</p>';
+        gridLogSenha = null;
+        toastMsg(data.error || data.message || 'Não foi possível carregar o log.', 'error');
         return;
       }
       const itens = Array.isArray(data.itens) ? data.itens : [];
-      if (!itens.length) {
-        corpo.innerHTML = '<tr><td colspan="6">Nenhum registro.</td></tr>';
-        return;
-      }
-      corpo.innerHTML = itens.map((item) => {
+      const rows = itens.map((item, idx) => {
         const ok = String(item.RESULTADO || item.resultado || '').toUpperCase() === 'S';
         const evento = item.EVENTO || item.evento || '';
         const canalItem = (item.CANAL || item.canal) === 'painel' ? 'Painel' : 'Motorista';
@@ -1520,17 +1534,63 @@
         const cd = item.CDCADASTRO || item.cdcadastro;
         const destino = item.DESTINO || item.destino || '';
         const detalhe = item.DETALHE || item.detalhe || '';
-        return '<tr>'
-          + '<td>' + textoLogSenha(quandoLogSenha(item.DH || item.dh)) + '</td>'
-          + '<td>' + textoLogSenha(canalItem) + '</td>'
-          + '<td>' + textoLogSenha(quem) + (cd ? '<br><small>Cadastro ' + textoLogSenha(cd) + '</small>' : '') + '</td>'
-          + '<td class="' + (ok ? 'log-senha-ok' : 'log-senha-falha') + '">' + textoLogSenha(ROTULOS_LOG_SENHA[evento] || evento) + '</td>'
-          + '<td>' + textoLogSenha(destino || '—') + '</td>'
-          + '<td>' + textoLogSenha(detalhe) + '</td>'
-          + '</tr>';
-      }).join('');
+        const eventoLabel = ROTULOS_LOG_SENHA[evento] || evento;
+        const quemHtml = textoLogSenha(quem) + (cd ? '<br><small>Cadastro ' + textoLogSenha(cd) + '</small>' : '');
+        const eventoHtml = '<span class="' + (ok ? 'log-senha-ok' : 'log-senha-falha') + '">' + textoLogSenha(eventoLabel) + '</span>';
+        return {
+          ID: String(idx + 1),
+          QUANDO: quandoLogSenha(item.DH || item.dh),
+          CANAL: canalItem,
+          QUEM_HTML: quemHtml,
+          EVENTO_HTML: eventoHtml,
+          DESTINO: destino || '—',
+          DETALHE: detalhe || '',
+        };
+      });
+      setGridCount('logSenhaGridCountText', rows.length);
+      if (!rows.length) {
+        wrap.innerHTML = '<p class="empty">Nenhum registro.</p>';
+        gridLogSenha = null;
+        return;
+      }
+      if (typeof window.GridEditor === 'undefined') {
+        wrap.innerHTML = '<p class="empty">GridEditor não carregou. Atualize a página (Ctrl+F5).</p>';
+        return;
+      }
+      gridLogSenha = ensureGrid('#logSenhaGrid', gridLogSenha, function () {
+        return new window.GridEditor({
+          container: '#logSenhaGrid',
+          showActions: false,
+          columns: [
+            { field: 'ID', header: 'ID', editable: false, isId: true, hidden: true },
+            { field: 'QUANDO', header: 'Quando', editable: false, width: '140px' },
+            { field: 'CANAL', header: 'Canal', editable: false, width: '100px' },
+            {
+              field: 'QUEM_HTML',
+              header: 'Quem',
+              editable: false,
+              format: function (v) { return v; },
+            },
+            {
+              field: 'EVENTO_HTML',
+              header: 'O que aconteceu',
+              editable: false,
+              width: '180px',
+              format: function (v) { return v; },
+            },
+            { field: 'DESTINO', header: 'Destino', editable: false, width: '140px' },
+            { field: 'DETALHE', header: 'Detalhe', editable: false },
+          ],
+        });
+      });
+      if (gridLogSenha) gridLogSenha.render(rows);
     } catch (err) {
-      corpo.innerHTML = '<tr><td colspan="6">Erro de conexão.</td></tr>';
+      setGridCount('logSenhaGridCountText', 0);
+      wrap.innerHTML = '<p class="empty">Erro de conexão.</p>';
+      gridLogSenha = null;
+      toastMsg('Erro de conexão ao carregar o log.', 'error');
+    } finally {
+      hideLoadingOverlay();
     }
   };
 
@@ -1547,6 +1607,8 @@
     if (busca) busca.value = '';
     window.carregarLogRecuperacaoSenha();
   });
+
+  hideCardMessages();
 
   (function initConfiguracoesTabs() {
     const root = document.querySelector('.configuracoes-container');

@@ -433,10 +433,55 @@
           <span class="config-item-icon">📞</span>
           <div class="config-item-text">
             <div class="config-item-title">Suporte</div>
-            <div class="config-item-desc">Entre em contato com o suporte</div>
+            <div class="config-item-desc">Problema técnico ou dúvida no app</div>
           </div>
         </div>
         <button class="btn-action secondary" onclick="abrirSuporte()">Contatar</button>
+      </div>
+
+      <div class="config-item">
+        <div class="config-item-label">
+          <span class="config-item-icon">🤝</span>
+          <div class="config-item-text">
+            <div class="config-item-title">Pedido de apoio</div>
+            <div class="config-item-desc">Ajuda operacional, técnica ou financeira</div>
+          </div>
+        </div>
+        <button class="btn-action secondary" onclick="abrirPedidoApoio()">Solicitar</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal Suporte / Apoio via WhatsApp Atlas -->
+  <div id="modalApoioWa" style="display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.5); z-index: 10001; align-items: center; justify-content: center; padding: 16px;">
+    <div style="background: var(--card-bg, #fff); color: var(--text, #333); border-radius: 16px; padding: 24px; max-width: 420px; width: 100%; box-shadow: 0 8px 32px rgba(0,0,0,0.2);">
+      <h2 id="modalApoioWaTitulo" style="margin: 0 0 8px 0; font-size: 20px;">Suporte</h2>
+      <p id="modalApoioWaStatus" style="margin: 0 0 12px; font-size: 13px; color: #64748b;"></p>
+      <div id="modalApoioWaCamposSuporte">
+        <div class="input-group">
+          <label class="input-label" for="motApoioAssunto">Assunto</label>
+          <input type="text" id="motApoioAssunto" class="input-field" maxlength="120" placeholder="Resumo do problema">
+        </div>
+      </div>
+      <div id="modalApoioWaCamposApoio" style="display: none;">
+        <div class="input-group">
+          <label class="input-label" for="motApoioTipo">Tipo de ajuda</label>
+          <select id="motApoioTipo" class="input-field">
+            <option value="OPERACIONAL">Operacional</option>
+            <option value="TECNICO">Técnico</option>
+            <option value="FINANCEIRO">Financeiro</option>
+            <option value="OUTRO">Outro</option>
+          </select>
+        </div>
+      </div>
+      <div class="input-group">
+        <label class="input-label" for="motApoioDesc">Descrição</label>
+        <textarea id="motApoioDesc" class="input-field" maxlength="800" rows="4" placeholder="Descreva (mín. 10 caracteres)"></textarea>
+      </div>
+      <p id="modalApoioWaFeedback" style="min-height: 1.2em; font-size: 14px; margin: 8px 0 0;"></p>
+      <div style="display: flex; gap: 10px; margin-top: 16px;">
+        <button type="button" class="btn-action secondary" style="flex: 1;" onclick="fecharModalApoioWa()">Cancelar</button>
+        <button type="button" class="btn-action" style="flex: 1;" id="btnEnviarApoioWa" onclick="enviarApoioWa()">Enviar</button>
       </div>
     </div>
   </div>
@@ -497,11 +542,8 @@
 
       const motorista = getMotorista();
 
-      // Telefone do suporte: vindo da API (variável TELEFONE_SUPORTE no .env do servidor). Evita alterar código.
-      let TELEFONE_SUPORTE = '';
-      fetch('/api/motorista/config').then(r => r.json()).then(data => {
-        TELEFONE_SUPORTE = (data.telefoneSuporte || '').trim();
-      }).catch(() => {});
+      let apoioWaModo = 'suporte';
+      let apoioWaEnviando = false;
 
       // Carregar configurações salvas
       function carregarConfiguracoes() {
@@ -847,17 +889,104 @@
       }
     }
 
-      // Suporte: usa TELEFONE_SUPORTE se definido, senão celular do motorista
-      function abrirSuporte() {
-      let numero = (TELEFONE_SUPORTE && TELEFONE_SUPORTE.replace(/\D/g, '')) || (motorista?.celular || motorista?.NRCELULAR || '').replace(/\D/g, '');
-      if (numero) {
-        if (numero.startsWith('0')) numero = numero.substring(1);
-        const numWa = numero.length >= 12 ? numero : (numero.length >= 10 ? '55' + numero : numero);
-        window.open(`https://wa.me/${numWa}`, '_blank');
-      } else {
-        mostrarToast('Configure TELEFONE_SUPORTE em configuracoes.html ou cadastre o celular do motorista.', 'info');
+      function authHeadersApoio() {
+        const token = (typeof getToken === 'function' ? getToken() : localStorage.getItem('token')) || '';
+        return { 'Content-Type': 'application/json', Authorization: token ? 'Bearer ' + token : '' };
       }
-    }
+
+      function fecharModalApoioWa() {
+        const m = document.getElementById('modalApoioWa');
+        if (m) m.style.display = 'none';
+        apoioWaEnviando = false;
+      }
+
+      async function abrirModalApoioWa(modo) {
+        apoioWaModo = modo === 'apoio' ? 'apoio' : 'suporte';
+        const m = document.getElementById('modalApoioWa');
+        const titulo = document.getElementById('modalApoioWaTitulo');
+        const statusEl = document.getElementById('modalApoioWaStatus');
+        const fb = document.getElementById('modalApoioWaFeedback');
+        if (titulo) titulo.textContent = apoioWaModo === 'apoio' ? 'Pedido de apoio' : 'Suporte';
+        document.getElementById('modalApoioWaCamposSuporte').style.display = apoioWaModo === 'suporte' ? 'block' : 'none';
+        document.getElementById('modalApoioWaCamposApoio').style.display = apoioWaModo === 'apoio' ? 'block' : 'none';
+        if (fb) { fb.textContent = ''; fb.style.color = ''; }
+        if (m) m.style.display = 'flex';
+        if (statusEl) statusEl.textContent = 'Verificando canal...';
+        try {
+          const res = await fetch('/api/apoio/status', { headers: authHeadersApoio() });
+          const data = await res.json().catch(() => ({}));
+          if (data.destinoConfigurado) {
+            statusEl.textContent = 'Canal pronto' + (data.destinoMascara ? ' (' + data.destinoMascara + ')' : '') + '.';
+            statusEl.style.color = '#15803d';
+          } else {
+            statusEl.textContent = 'Canal ainda não pronto (destino Atlas não configurado).';
+            statusEl.style.color = '#b45309';
+          }
+        } catch (e) {
+          if (statusEl) {
+            statusEl.textContent = 'Não foi possível verificar o canal.';
+            statusEl.style.color = '#b45309';
+          }
+        }
+      }
+
+      function abrirSuporte() { abrirModalApoioWa('suporte'); }
+      function abrirPedidoApoio() { abrirModalApoioWa('apoio'); }
+
+      async function enviarApoioWa() {
+        if (apoioWaEnviando) return;
+        const desc = (document.getElementById('motApoioDesc') || {}).value || '';
+        const fb = document.getElementById('modalApoioWaFeedback');
+        const btn = document.getElementById('btnEnviarApoioWa');
+        if (String(desc).trim().length < 10) {
+          if (fb) { fb.textContent = 'Descreva com pelo menos 10 caracteres.'; fb.style.color = '#b91c1c'; }
+          return;
+        }
+        let body;
+        let url;
+        if (apoioWaModo === 'suporte') {
+          const assunto = (document.getElementById('motApoioAssunto') || {}).value || '';
+          if (String(assunto).trim().length < 3) {
+            if (fb) { fb.textContent = 'Informe o assunto.'; fb.style.color = '#b91c1c'; }
+            return;
+          }
+          body = { assunto, descricao: desc, pagina: 'motorista/configuracoes' };
+          url = '/api/apoio/motorista/suporte';
+        } else {
+          body = {
+            tipoAjuda: (document.getElementById('motApoioTipo') || {}).value || 'OPERACIONAL',
+            descricao: desc,
+            pagina: 'motorista/configuracoes'
+          };
+          url = '/api/apoio/motorista/apoio';
+        }
+        apoioWaEnviando = true;
+        if (btn) { btn.disabled = true; btn.textContent = 'Enviando...'; }
+        if (fb) { fb.textContent = 'Enviando...'; fb.style.color = '#0369a1'; }
+        try {
+          const res = await fetch(url, { method: 'POST', headers: authHeadersApoio(), body: JSON.stringify(body) });
+          const data = await res.json().catch(() => ({}));
+          if (res.ok && data.success) {
+            if (fb) { fb.textContent = data.message || 'Enviado.'; fb.style.color = '#15803d'; }
+            if (!data.deduplicado) {
+              const d = document.getElementById('motApoioDesc');
+              const a = document.getElementById('motApoioAssunto');
+              if (d) d.value = '';
+              if (a) a.value = '';
+            }
+            mostrarToast(data.message || 'Pedido enviado', 'success');
+          } else {
+            if (fb) { fb.textContent = data.error || 'Falha no envio.'; fb.style.color = '#b91c1c'; }
+            mostrarToast(data.error || 'Falha no envio', 'error');
+          }
+        } catch (e) {
+          if (fb) { fb.textContent = 'Erro de rede.'; fb.style.color = '#b91c1c'; }
+          mostrarToast('Erro de rede ao enviar', 'error');
+        } finally {
+          apoioWaEnviando = false;
+          if (btn) { btn.disabled = false; btn.textContent = 'Enviar'; }
+        }
+      }
 
       // Voltar: sempre para o dashboard
       function voltar() {
@@ -877,6 +1006,9 @@
       window.exportarDados = exportarDados;
       window.sincronizarAgora = sincronizarAgora;
       window.abrirSuporte = abrirSuporte;
+      window.abrirPedidoApoio = abrirPedidoApoio;
+      window.fecharModalApoioWa = fecharModalApoioWa;
+      window.enviarApoioWa = enviarApoioWa;
       window.voltar = voltar;
 
       var formAlterarSenha = document.getElementById('formAlterarSenha');

@@ -37,9 +37,11 @@ const mapaViagemRoutes = require('./routes/mapa-viagem.routes');
 const alertRoutes = require('./routes/alert.routes');
 const messageRoutes = require('./routes/message.routes');
 const sosRoutes = require('./routes/sos.routes');
+const apoioRoutes = require('./routes/apoio.routes');
 const reputationRoutes = require('./routes/reputation.routes');
 const configRoutes = require('./routes/config.routes');
 const saasAdminRoutes = require('./routes/saas-admin.routes');
+const financeiroRoutes = require('./routes/financeiro.routes');
 const pedidoAcessoRoutes = require('./routes/pedido-acesso.routes');
 const oportunidadesCampanhasRoutes = require('./routes/oportunidades-campanhas.routes');
 const wmsCadastroRoutes = require('./routes/wms-cadastro.routes');
@@ -366,6 +368,7 @@ const apiRoutes = [
   { path: '/api/auth', route: authRoutes },
   { path: '/api/menu', route: menuRoutes },
   { path: '/api/saas', route: saasAdminRoutes },
+  { path: '/api/financeiro', route: financeiroRoutes },
   { path: '/api/motorista', route: motoristaAppRoutes },
   { path: '/api/log', route: usuariologacaoRoutes },
   // Config (GET /contexto, /configuracoes/mapa, identidade, etc.) ANTES de cidades/estado/viagem:
@@ -401,6 +404,7 @@ const apiRoutes = [
   { path: '/api/messages', route: messageRoutes },
   { path: '/api/chat', route: messageRoutes }, // Alias para módulo separado
   { path: '/api/sos', route: sosRoutes }, // Rotas do módulo SOS
+  { path: '/api/apoio', route: apoioRoutes }, // Suporte / pedido de apoio via WhatsApp (canal default)
   { path: '/api/reputation', route: reputationRoutes },
   { path: '/api/ranking', route: reputationRoutes }, // Alias para módulo separado
   { path: '/api', route: tipoOcorrenciaRoutes },

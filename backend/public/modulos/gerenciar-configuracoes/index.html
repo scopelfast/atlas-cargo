@@ -835,9 +835,75 @@
     html[data-theme="dark"] .configuracoes-container .log-senha-tabela td { background: #0f172a !important; color: #e2e8f0 !important; border-bottom-color: #334155 !important; }
     html[data-theme="dark"] .configuracoes-container .log-senha-ok { color: #bef264; }
     html[data-theme="dark"] .configuracoes-container .log-senha-falha { color: #fda4af; }
+
+    /* Feedback só via toast — esconde faixas no rodapé dos cards */
+    .configuracoes-container .config-card .message,
+    .configuracoes-container #testResultMessage {
+      display: none !important;
+    }
+
+    /* Contagem + grid (padrão Usuários / Atlas Pay) */
+    .configuracoes-container .grid-count {
+      margin: 8px 0 10px;
+      font-size: 13px;
+      color: var(--gray, #64748b);
+    }
+    .configuracoes-container .grid-container {
+      width: 100%;
+      overflow: auto;
+    }
+    .configuracoes-container .grid-container .empty {
+      margin: 12px 0;
+      color: var(--gray, #64748b);
+      font-size: 14px;
+    }
+
+    /* Dark mode com especificidade acima do CSS do módulo */
+    html[data-theme="dark"] .configuracoes-container .config-card {
+      background: #1e293b !important;
+      border-color: #334155 !important;
+    }
+    html[data-theme="dark"] .configuracoes-container .config-card-header {
+      background: #0f172a !important;
+      border-bottom-color: #334155 !important;
+      color: #f1f5f9 !important;
+    }
+    html[data-theme="dark"] .configuracoes-container .config-card-body,
+    html[data-theme="dark"] .configuracoes-container .config-card-footer {
+      background: #1e293b !important;
+      color: #e2e8f0 !important;
+      border-color: #334155 !important;
+    }
+    html[data-theme="dark"] .configuracoes-container .config-card .form-group label {
+      color: #e2e8f0 !important;
+    }
+    html[data-theme="dark"] .configuracoes-container .config-card .form-group input,
+    html[data-theme="dark"] .configuracoes-container .config-card .form-group select,
+    html[data-theme="dark"] .configuracoes-container .config-card .form-group textarea {
+      background: #0f172a !important;
+      border-color: #334155 !important;
+      color: #e2e8f0 !important;
+    }
+    html[data-theme="dark"] .configuracoes-container .grid-count {
+      color: #94a3b8 !important;
+    }
+    html[data-theme="dark"] .configuracoes-container .grid-container .empty {
+      color: #94a3b8 !important;
+    }
+    html[data-theme="dark"] .configuracoes-container .log-senha-ok { color: #bef264 !important; }
+    html[data-theme="dark"] .configuracoes-container .log-senha-falha { color: #fda4af !important; }
   </style>
 </head>
 <body>
+  <div id="loadingOverlay" class="calculando-overlay" style="display: none;">
+    <div class="calculando-content">
+      <div class="calculando-spinner"></div>
+      <h3 id="loadingTitle">Processando</h3>
+      <p id="loadingText">Aguarde...</p>
+      <p class="calculando-detalhe">Isso pode levar alguns segundos.</p>
+    </div>
+  </div>
+
   <div class="configuracoes-container">
     <header class="configuracoes-header">
       <h2><i class="bx bx-cog"></i> <span data-i18n="web.modulos.configuracoes.titulo">Configurações do Sistema</span></h2>
@@ -1078,6 +1144,12 @@
                 <input type="checkbox" id="switchCloseTicket" checked style="margin:0; width: 18px; height: 18px;">
                 <strong data-i18n="web.modulos.configuracoes.switchCloseTicket">Encerrar ticket (closeTicket)</strong>
               </label>
+            </div>
+
+            <div class="form-group" style="grid-column: 1 / -1;">
+              <label for="whatsappDestinoSuporte">Destino Atlas — Suporte / Pedido de apoio</label>
+              <input type="text" id="whatsappDestinoSuporte" class="form-control" placeholder="Ex: 5541999999999" maxlength="20" autocomplete="off">
+              <div class="hint">Número que recebe Suporte e Pedido de apoio pelo canal Switch do tenant padrão. Também aceita TELEFONE_SUPORTE no .env se este campo estiver vazio. Usuários não veem este número.</div>
             </div>
           </div>
 
@@ -1601,30 +1673,18 @@
               <button type="submit" id="btnFiltrarLogSenha" class="btn-filtro btn-filtro-aplicar"><i class="bx bx-search"></i> Filtrar</button>
             </div>
           </form>
-          <div class="log-senha-tabela-wrap">
-            <table class="log-senha-tabela">
-              <thead>
-                <tr>
-                  <th>Quando</th>
-                  <th>Canal</th>
-                  <th>Quem</th>
-                  <th>O que aconteceu</th>
-                  <th>Destino</th>
-                  <th>Detalhe</th>
-                </tr>
-              </thead>
-              <tbody id="logSenhaCorpo">
-                <tr><td colspan="6">Abra esta aba para carregar.</td></tr>
-              </tbody>
-            </table>
+          <div class="grid-count"><span id="logSenhaGridCountText">0 registro(s) encontrado(s)</span></div>
+          <div id="logSenhaGrid" class="grid-container">
+            <p class="empty">Abra esta aba para carregar.</p>
           </div>
         </div>
       </article>
     </div>
-    </div>
+  </div>
   </div>
 
   <script src="/js/utils.js"></script>
-  <script src="js/script.js?v=20261126fuso"></script>
+  <script src="/js/grid-editor.js"></script>
+  <script src="js/script.js?v=20261127cfgPadrao"></script>
 </body>
 </html>

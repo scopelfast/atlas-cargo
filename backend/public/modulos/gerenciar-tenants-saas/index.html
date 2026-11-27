@@ -98,6 +98,23 @@
       gap: 8px;
     }
 
+    /* Mesmo ritmo de Gerenciar Usuários / Atlas Pay (form-panel-titulo global em modulos.css) */
+    .saas-op-container .filtros-box h2.form-panel-titulo {
+      margin: 0 0 12px 0;
+      font-size: 20px;
+      font-weight: 600;
+      color: var(--ac-primary, #0d2137);
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      line-height: 1.3;
+    }
+    .saas-op-container .filtros-box h2.form-panel-titulo > i.bx {
+      font-size: 1em;
+      color: inherit;
+      flex-shrink: 0;
+    }
+
     .saas-op-container .filtros-grid {
       display: grid;
       grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
@@ -160,43 +177,131 @@
     .saas-op-container .estatisticas-table tbody tr:last-child td { border-bottom: none; }
     .saas-op-container .estatisticas-table code { font-size: 13px; background: #f1f5f9; padding: 2px 6px; border-radius: 4px; }
 
-    .cliente-lista { display: flex; flex-direction: column; gap: 12px; }
-    .cliente-card {
-      border: 1px solid var(--border, #e2e8f0);
-      border-radius: 12px;
-      background: #fff;
-      padding: 14px 16px;
+    .saas-op-container .btn-filtro.btn-sm {
+      padding: 8px 12px;
+      font-size: 13px;
+      border-radius: 8px;
+      gap: 6px;
     }
-    .cliente-card-topo {
+    .saas-cli-toolbar {
       display: flex;
       justify-content: space-between;
+      align-items: center;
       gap: 12px;
-      align-items: flex-start;
+      flex-wrap: wrap;
     }
-    .cliente-card-topo strong {
-      display: block;
+    .saas-cli-acoes {
+      white-space: nowrap;
+      text-align: right;
+      width: 88px;
+      min-width: 88px;
+    }
+    .saas-cli-acoes .grid-btn-edit,
+    .saas-cli-acoes .grid-btn-delete {
+      margin-left: 4px !important;
+    }
+    .saas-cli-acoes .grid-btn-edit i,
+    .saas-cli-acoes .grid-btn-delete i {
       font-size: 16px;
-      line-height: 1.35;
-      overflow-wrap: anywhere;
+      line-height: 1;
     }
-    .cliente-card-topo code { font-size: 13px; }
-    .cliente-card-acoes { display: flex; gap: 8px; flex-shrink: 0; }
-    .cliente-dados {
-      display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
-      gap: 10px 16px;
-      margin: 12px 0 0;
+    .saas-cli-base {
+      display: inline-flex;
+      align-items: center;
+      margin-left: 6px;
+      font-size: 12px;
+      font-weight: 700;
+      color: #64748b;
     }
-    .cliente-dados div { min-width: 0; }
-    .cliente-dados dt { font-size: 12px; font-weight: 700; color: #64748b; }
-    .cliente-dados dd { margin: 2px 0 0; font-size: 14px; overflow-wrap: anywhere; }
-    html[data-theme="dark"] .cliente-card {
-      background: #1e293b;
-      border-color: #334155;
+    .saas-cliente-modal {
+      display: none;
+      position: fixed;
+      inset: 0;
+      z-index: 10060;
+      align-items: center;
+      justify-content: center;
+      padding: 16px;
+      box-sizing: border-box;
+      background: rgba(15, 23, 42, 0.55);
+    }
+    .saas-cliente-modal.is-open { display: flex; }
+    .saas-cliente-modal-panel {
+      width: min(760px, 100%);
+      max-height: min(90vh, 900px);
+      overflow: auto;
+      background: #fff;
+      border-radius: 14px;
+      border: 1px solid #e2e8f0;
+      box-shadow: 0 20px 50px rgba(0,0,0,.28);
+      padding: 0;
+      margin: 0;
+    }
+    .saas-plano-modal-panel {
+      width: min(880px, 100%);
+    }
+    .saas-cliente-modal-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      padding: 16px 20px;
+      border-bottom: 1px solid #e2e8f0;
+    }
+    .saas-cliente-modal-header h3 {
+      margin: 0;
+      font-size: 18px;
+      font-weight: 700;
+      color: var(--ac-primary, #0d2137);
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .saas-cliente-modal-x {
+      width: 36px;
+      height: 36px;
+      border: none;
+      border-radius: 8px;
+      background: #f1f5f9;
+      color: #475569;
+      font-size: 22px;
+      line-height: 1;
+      cursor: pointer;
+    }
+    .saas-cliente-modal-x:hover { background: #e2e8f0; }
+    .saas-cliente-modal-body { padding: 16px 20px; }
+    .saas-cliente-modal-actions {
+      display: flex;
+      justify-content: flex-end;
+      gap: 10px;
+      flex-wrap: wrap;
+      padding: 14px 20px 18px;
+      border-top: 1px solid #e2e8f0;
+    }
+    html[data-theme="dark"] .saas-cli-base { color: #94a3b8; }
+    html[data-theme="dark"] .saas-op-container .estatisticas-table thead { background: #0f172a; }
+    html[data-theme="dark"] .saas-op-container .estatisticas-table th,
+    html[data-theme="dark"] .saas-op-container .estatisticas-table td {
       color: #e2e8f0;
+      border-color: #334155;
     }
-    html[data-theme="dark"] .cliente-dados dt { color: #94a3b8; }
-    html[data-theme="dark"] .cliente-dados dd { color: #e2e8f0; }
+    html[data-theme="dark"] .saas-op-container .estatisticas-table tbody tr:hover { background: #1e293b; }
+    html[data-theme="dark"] .saas-op-container .estatisticas-table code {
+      background: #0f172a;
+      color: #94a3b8;
+    }
+    html[data-theme="dark"] .saas-cliente-modal-panel {
+      background: #1e293b !important;
+      border-color: #334155 !important;
+    }
+    html[data-theme="dark"] .saas-cliente-modal-header,
+    html[data-theme="dark"] .saas-cliente-modal-actions {
+      border-color: #334155 !important;
+    }
+    html[data-theme="dark"] .saas-cliente-modal-header h3 { color: #e2e8f0 !important; }
+    html[data-theme="dark"] .saas-cliente-modal-x {
+      background: #334155 !important;
+      color: #e2e8f0 !important;
+    }
 
     /* Uma coluna (como Gerenciar Cadastro Geral: formulário acima, lista abaixo) */
     .saas-split-layout {
@@ -303,6 +408,38 @@
       padding: 10px 16px;
       font-size: 14px;
     }
+    .saas-limpeza-grupos {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      margin: 14px 0;
+    }
+    .saas-limpeza-grupos .limpeza-bloco-card {
+      border: 1px solid var(--border, #e2e8f0);
+      border-radius: 10px;
+      background: #f8fafc;
+      padding: 12px 14px;
+    }
+    .saas-limpeza-grupos .limpeza-bloco-card > label {
+      display: block;
+      margin-bottom: 8px;
+      font-weight: 600;
+      color: var(--dark, #1e293b);
+    }
+    .saas-limpeza-grupos .limpeza-tabelas-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+      gap: 6px 12px;
+      margin: 0 0 0 4px;
+    }
+    html[data-theme="dark"] .saas-limpeza-grupos .limpeza-bloco-card {
+      background: #1e293b;
+      border-color: #334155;
+    }
+    html[data-theme="dark"] .saas-limpeza-grupos .limpeza-bloco-card > label {
+      color: #e2e8f0;
+    }
+
     .saas-plano-modulos-block {
       margin-top: 22px;
       padding-top: 20px;
@@ -412,9 +549,8 @@
       cursor: not-allowed;
     }
 
-    .saas-msg { margin-top: 12px; font-size: 14px; }
-    .saas-msg.ok { color: #059669; }
-    .saas-msg.err { color: #dc2626; }
+    /* Feedback de operação = toast (showMessage). Não usar faixa verde/vermelha no meio da tela. */
+    .saas-msg { display: none !important; }
 
     /* Modal de confirmação — mesmo padrão dos demais módulos (modulos.css + btn-filtro) */
     .saas-confirm-modal { z-index: 10050; }
@@ -529,121 +665,219 @@
 
     <div id="tab-pedidos" class="tab-content active">
       <div class="filtros-box">
-        <h3><i class="bx bx-buildings"></i> Empresas que pediram acesso</h3>
-        <p class="saas-op-info">O pedido chega de <strong>/cadastro-empresa.html</strong>. Liberar pede um identificador curto e confirmado, cria o tenant e o usuário com a senha que a empresa escolheu. As atividades copiadas são as suas, sem esta tela de tenants e sem Tipos de Atividade. Cada movimento (pedido, liberação e recusa) avisa o celular da empresa no WhatsApp, pelo Switch Digital do tenant padrão. O mesmo canal avisa o celular do cadastro do tenant padrão, para liberar o acesso. Se o envio falhar, a coluna Aviso ao responsável mostra o motivo.</p>
-        <div class="saas-msg" id="msgPedidos" style="display:none;"></div>
-        <div id="tablePedidosWrap" style="overflow-x:auto;"><p class="saas-op-info">Carregando…</p></div>
+        <h2 class="form-panel-titulo"><i class="bx bx-time-five" aria-hidden="true"></i> Empresas que pediram acesso</h2>
+        <p class="saas-op-info">O pedido chega de <strong>/cadastro-empresa.html</strong>. Liberar pede um identificador curto e confirmado, cria o tenant e o usuário com a senha que a empresa escolheu. As atividades copiadas são as suas, sem esta tela de tenants e sem Tipos de Atividade. Cada movimento (pedido, liberação e recusa) avisa o celular da empresa no WhatsApp, pelo Switch Digital do tenant padrão. O mesmo canal avisa o celular do cadastro do tenant padrão, para liberar o acesso. Se o envio falhar, a coluna Aviso mostra o motivo.</p>
+        <div id="pedidosGridCount" style="padding: 10px 0; color: #666; font-size: 14px; font-weight: 500;">
+          <span id="pedidosGridCountText">0 registro(s) encontrado(s)</span>
+        </div>
+        <div id="pedidosGrid" class="grid-container"><p class="empty">Carregando…</p></div>
       </div>
     </div>
 
     <div id="tab-catalogo" class="tab-content">
-      <div class="saas-split-layout">
-        <div class="filtros-box">
-          <h3><i class="bx bx-plus-circle"></i> Novo módulo</h3>
-          <div class="filtros-grid">
-            <div>
-              <label for="newCod">Código</label>
-              <input id="newCod" class="form-control" type="text" placeholder="ex.: meu_modulo" maxlength="40" autocomplete="off" />
-            </div>
-            <div>
-              <label for="newNm">Nome na tela</label>
-              <input id="newNm" class="form-control" type="text" placeholder="Nome exibido" />
-            </div>
-            <div>
-              <label for="newOrd">Ordem</label>
-              <input id="newOrd" class="form-control" type="number" value="0" />
-            </div>
-          </div>
-          <div class="filtros-actions">
-            <button type="button" class="btn-filtro btn-filtro-novo" id="btnAddModulo"><i class="bx bx-plus"></i> <span>Cadastrar / atualizar</span></button>
-          </div>
-          <div class="saas-msg" id="msgCatalogo" style="display:none;"></div>
+      <div class="filtros-box">
+        <h2 class="form-panel-titulo"><i class="bx bx-list-ul" aria-hidden="true"></i> Módulos cadastrados</h2>
+        <p class="saas-op-info" style="margin-top:10px">Catálogo de módulos do produto. Incluir e editar abrem em janela. O código só é definido na criação.</p>
+        <div class="actions-top">
+          <div></div>
+          <button type="button" class="btn-filtro btn-filtro-novo" id="btnNovoModulo"><i class="bx bx-plus"></i> <span>Novo</span></button>
         </div>
-        <div class="filtros-box">
-          <h3><i class="bx bx-table"></i> Módulos cadastrados</h3>
-          <div id="tableCatalogoWrap"><p class="saas-op-info">Carregando…</p></div>
+        <div id="catalogoGridCount" style="padding: 10px 0; color: #666; font-size: 14px; font-weight: 500;">
+          <span id="catalogoGridCountText">0 registro(s) encontrado(s)</span>
         </div>
+        <div id="catalogoGrid" class="grid-container"><p class="empty">Carregando…</p></div>
       </div>
     </div>
 
     <div id="tab-planos" class="tab-content">
-      <div class="saas-split-layout">
-        <div class="filtros-box">
-          <h3><i class="bx bx-plus-circle"></i> Novo plano</h3>
-          <div class="filtros-grid filtros-grid--plano-novo">
-            <div>
-              <label for="newPlanoNm">Nome</label>
-              <input id="newPlanoNm" class="form-control" type="text" placeholder="Ex.: Básico" />
-            </div>
-            <div>
-              <label for="newPlanoDs">Descrição</label>
-              <input id="newPlanoDs" class="form-control" type="text" placeholder="Opcional" />
-            </div>
-          </div>
-          <div class="filtros-actions">
-            <button type="button" class="btn-filtro btn-filtro-novo" id="btnAddPlano"><i class="bx bx-plus"></i> <span>Criar plano</span></button>
-          </div>
-          <div class="saas-msg" id="msgPlanoNovo" style="display:none;"></div>
+      <div class="filtros-box">
+        <h2 class="form-panel-titulo"><i class="bx bx-package" aria-hidden="true"></i> Planos cadastrados</h2>
+        <p class="saas-op-info" style="margin-top:10px">Nome, limites e módulos do plano. Incluir e editar abrem em janela; um único Salvar grava tudo.</p>
+        <div class="actions-top">
+          <div></div>
+          <button type="button" class="btn-filtro btn-filtro-novo" id="btnNovoPlano"><i class="bx bx-plus"></i> <span>Novo</span></button>
         </div>
-        <div class="filtros-box">
-          <h3><i class="bx bx-check-square"></i> Composição do plano</h3>
-          <p class="saas-op-info" style="margin: -8px 0 16px;">Escolha o plano, ajuste limites (cada um com o seu guardar) e marque os módulos. Use <strong>Salvar plano</strong> para gravar os módulos de uma vez.</p>
-
-          <div class="saas-plano-select-row">
-            <label for="selPlano">Plano</label>
-            <select id="selPlano" class="form-control"><option value="">Carregando…</option></select>
-          </div>
-
-          <div class="saas-plano-limits" aria-label="Limites do plano">
-            <div class="saas-plano-limit-card">
-              <label for="planoMaxAssentos">Máx. usuários ativos (assentos)</label>
-              <input id="planoMaxAssentos" class="form-control saas-plano-limit-input" type="number" min="1" max="999999" placeholder="vazio = ilimitado" />
-              <details class="saas-plano-hint">
-                <summary>Como usar este limite</summary>
-                <p class="saas-op-info">Referência na lista de clientes (uso/lim). O cadastro de utilizadores ativos <strong>não</strong> é bloqueado por este número. O controlo de acessos simultâneos ao painel é o limite de sessões ao lado.</p>
-              </details>
-              <div class="saas-plano-limit-card__actions">
-                <button type="button" class="btn-filtro btn-filtro-aplicar" id="btnSavePlanoAssentos"><i class="bx bx-save"></i> <span>Guardar assentos</span></button>
-              </div>
-            </div>
-            <div class="saas-plano-limit-card">
-              <label for="planoMaxSessoes">Máx. logins simultâneos (painel torre)</label>
-              <input id="planoMaxSessoes" class="form-control saas-plano-limit-input" type="number" min="1" max="999999" placeholder="vazio = ilimitado" />
-              <details class="saas-plano-hint">
-                <summary>Como contam as sessões</summary>
-                <p class="saas-op-info">Conta sessões abertas na janela do token (até o utilizador sair com Sair). Se alterar a duração do JWT, alinhe <code>TOWER_SESSION_TTL_HOURS</code> no <code>.env</code>.</p>
-              </details>
-              <div class="saas-plano-limit-card__actions">
-                <button type="button" class="btn-filtro btn-filtro-aplicar" id="btnSavePlanoSessoes"><i class="bx bx-save"></i> <span>Guardar sessões</span></button>
-              </div>
-            </div>
-          </div>
-
-          <div class="saas-plano-modulos-block">
-            <h4 class="saas-subsection-title"><i class="bx bx-grid-alt"></i> Módulos incluídos no plano</h4>
-            <div id="planoModulosGrid" class="saas-modulos-grid"></div>
-          </div>
-
-          <div class="filtros-actions saas-plano-footer-actions">
-            <button type="button" class="btn-filtro btn-filtro-aplicar" id="btnSavePlanoMods"><i class="bx bx-save"></i> <span>Salvar plano</span></button>
-            <button type="button" class="btn-filtro btn-filtro-limpar" id="btnLimparComposicaoPlano" title="Remove todos os módulos deste plano">
-              <i class="bx bx-eraser"></i> <span>Limpar composição</span>
-            </button>
-          </div>
-          <div class="saas-msg" id="msgPlano" style="display:none;"></div>
+        <div id="planosGridCount" style="padding: 10px 0; color: #666; font-size: 14px; font-weight: 500;">
+          <span id="planosGridCountText">0 registro(s) encontrado(s)</span>
         </div>
+        <div id="planosGrid" class="grid-container"><p class="empty">Carregando…</p></div>
       </div>
     </div>
 
     <div id="tab-clientes" class="tab-content">
-      <div class="saas-split-layout">
-        <div class="filtros-box">
-          <h3 id="clienteFormTitulo"><i class="bx bx-user-plus"></i> Novo cliente</h3>
-          <p class="saas-op-info">Aqui fica o cadastro da empresa que usa o sistema: nome, documento, contato, e-mail e celular. O plano e os limites continuam neste mesmo formulário.</p>
+      <div class="filtros-box">
+        <h2 class="form-panel-titulo"><i class="bx bx-buildings" aria-hidden="true"></i> Clientes cadastrados</h2>
+        <p class="saas-op-info" style="margin-top:10px">Cadastro da empresa que usa o sistema. Editar e incluir abrem em janela.</p>
+        <div class="actions-top">
+          <div></div>
+          <button type="button" class="btn-filtro btn-filtro-novo" id="btnNovoCliente"><i class="bx bx-plus"></i> <span>Novo</span></button>
+        </div>
+        <div id="clientesGridCount" style="padding: 10px 0; color: #666; font-size: 14px; font-weight: 500;">
+          <span id="clientesGridCountText">0 registro(s) encontrado(s)</span>
+        </div>
+        <div id="clientesGrid" class="grid-container"><p class="empty">Carregando…</p></div>
+      </div>
+    </div>
+
+    <div id="tab-override" class="tab-content">
+      <div class="filtros-box">
+        <h2 class="form-panel-titulo"><i class="bx bx-slider-alt" aria-hidden="true"></i> Override por tenant</h2>
+        <p class="saas-op-info" style="margin-top:10px">Módulos liberados por tenant, além do plano. Editar abre em janela.</p>
+        <div id="overrideGridCount" style="padding: 10px 0; color: #666; font-size: 14px; font-weight: 500;">
+          <span id="overrideGridCountText">0 registro(s) encontrado(s)</span>
+        </div>
+        <div id="overrideGrid" class="grid-container"><p class="empty">Carregando…</p></div>
+      </div>
+    </div>
+
+    <div id="tab-limpeza" class="tab-content">
+      <div class="filtros-box">
+        <h2 class="form-panel-titulo"><i class="bx bx-trash" aria-hidden="true"></i> Limpar dados de teste</h2>
+        <p class="saas-op-info" style="margin-top:10px">Marque as tabelas deste tenant. O nome do bloco marca todas dele. Se a tabela escolhida tem filhos que travam a exclusão, esses filhos entram junto. Usuário, plano, cidade e tipo de atividade ficam.</p>
+        <div class="filtros-grid">
+          <div>
+            <label for="limpezaTenant">Tenant</label>
+            <select id="limpezaTenant" class="form-control"></select>
+          </div>
+          <div>
+            <label for="limpezaConfirmacao">Digite o identificador para confirmar</label>
+            <input id="limpezaConfirmacao" class="form-control" maxlength="64" autocomplete="off" spellcheck="false" placeholder="o mesmo valor do tenant">
+          </div>
+        </div>
+        <div id="limpezaGrupos" class="saas-limpeza-grupos"></div>
+        <div class="filtros-actions">
+          <button type="button" id="btnLimpezaPrever" class="btn-filtro btn-filtro-aplicar"><i class="bx bx-search"></i> <span>Ver quantidades</span></button>
+          <button type="button" id="btnLimpezaExecutar" class="btn-filtro btn-filtro-danger"><i class="bx bx-trash"></i> <span>Limpar</span></button>
+        </div>
+        <div id="limpezaGridCount" style="padding: 10px 0; color: #666; font-size: 14px; font-weight: 500; display:none;">
+          <span id="limpezaGridCountText">0 registro(s) encontrado(s)</span>
+        </div>
+        <div id="limpezaResultado" class="grid-container" style="margin-top:8px;"></div>
+      </div>
+    </div>
+
+    <div id="saasOverrideModal" class="modal saas-cliente-modal" style="display:none" role="dialog" aria-modal="true" aria-labelledby="saasOverrideModalTitulo">
+      <div class="modal-content saas-cliente-modal-panel saas-plano-modal-panel">
+        <div class="saas-cliente-modal-header">
+          <h3 id="saasOverrideModalTitulo"><i class="bx bx-slider-alt"></i> Override de módulos</h3>
+          <button type="button" class="saas-cliente-modal-x" id="saasOverrideModalX" aria-label="Fechar" title="Fechar">&times;</button>
+        </div>
+        <div class="saas-cliente-modal-body">
+          <div class="filtros-grid">
+            <div>
+              <label for="overrideTenantId">Tenant</label>
+              <input id="overrideTenantId" class="form-control" type="text" readonly />
+            </div>
+          </div>
+          <div class="saas-plano-modulos-block">
+            <h4 class="saas-subsection-title"><i class="bx bx-toggle-right"></i> Módulos</h4>
+            <div id="saasModulosGrid" class="saas-modulos-grid"></div>
+          </div>
+        </div>
+        <div class="saas-cliente-modal-actions">
+          <button type="button" class="btn-filtro btn-filtro-novo" id="saasBtnSalvar"><i class="bx bx-save"></i> <span>Salvar</span></button>
+          <button type="button" class="btn-filtro btn-filtro-limpar" id="saasOverrideCancel"><i class="bx bx-x"></i> <span>Cancelar</span></button>
+        </div>
+      </div>
+    </div>
+
+    <div id="saasPlanoModal" class="modal saas-cliente-modal" style="display:none" role="dialog" aria-modal="true" aria-labelledby="saasPlanoModalTitulo">
+      <div class="modal-content saas-cliente-modal-panel saas-plano-modal-panel">
+        <div class="saas-cliente-modal-header">
+          <h3 id="saasPlanoModalTitulo"><i class="bx bx-plus-circle"></i> Novo plano</h3>
+          <button type="button" class="saas-cliente-modal-x" id="saasPlanoModalX" aria-label="Fechar" title="Fechar">&times;</button>
+        </div>
+        <div class="saas-cliente-modal-body">
+          <div class="filtros-grid">
+            <div>
+              <label for="planoModalNm">Nome</label>
+              <input id="planoModalNm" class="form-control" type="text" placeholder="Ex.: Básico" maxlength="120" />
+            </div>
+            <div>
+              <label for="planoModalDs">Descrição</label>
+              <input id="planoModalDs" class="form-control" type="text" placeholder="Opcional" maxlength="240" />
+            </div>
+            <div>
+              <label for="planoMaxAssentos">Máx. usuários ativos (assentos)</label>
+              <input id="planoMaxAssentos" class="form-control" type="number" min="1" max="999999" placeholder="vazio = ilimitado" />
+              <details class="saas-plano-hint">
+                <summary>Como usar este limite</summary>
+                <p class="saas-op-info">Referência na lista de clientes (uso/lim). O cadastro de utilizadores ativos <strong>não</strong> é bloqueado por este número.</p>
+              </details>
+            </div>
+            <div>
+              <label for="planoMaxSessoes">Máx. logins simultâneos (painel torre)</label>
+              <input id="planoMaxSessoes" class="form-control" type="number" min="1" max="999999" placeholder="vazio = ilimitado" />
+              <details class="saas-plano-hint">
+                <summary>Como contam as sessões</summary>
+                <p class="saas-op-info">Conta sessões abertas na janela do token (até o utilizador sair com Sair).</p>
+              </details>
+            </div>
+          </div>
+          <div class="saas-plano-modulos-block">
+            <h4 class="saas-subsection-title"><i class="bx bx-grid-alt"></i> Módulos incluídos</h4>
+            <div id="planoModulosGrid" class="saas-modulos-grid"></div>
+          </div>
+          <div class="saas-msg" id="msgPlanoModal" style="display:none;"></div>
+        </div>
+        <div class="saas-cliente-modal-actions">
+          <button type="button" class="btn-filtro btn-filtro-limpar" id="btnLimparComposicaoPlano" title="Desmarca todos os módulos">
+            <i class="bx bx-eraser"></i> <span>Limpar módulos</span>
+          </button>
+          <button type="button" class="btn-filtro btn-filtro-novo" id="btnSalvarPlano"><i class="bx bx-save"></i> <span>Salvar</span></button>
+          <button type="button" class="btn-filtro btn-filtro-limpar" id="btnCancelPlano"><i class="bx bx-x"></i> <span>Cancelar</span></button>
+        </div>
+      </div>
+    </div>
+
+    <div id="saasModuloModal" class="modal saas-cliente-modal" style="display:none" role="dialog" aria-modal="true" aria-labelledby="saasModuloModalTitulo">
+      <div class="modal-content saas-cliente-modal-panel">
+        <div class="saas-cliente-modal-header">
+          <h3 id="saasModuloModalTitulo"><i class="bx bx-plus-circle"></i> Novo módulo</h3>
+          <button type="button" class="saas-cliente-modal-x" id="saasModuloModalX" aria-label="Fechar" title="Fechar">&times;</button>
+        </div>
+        <div class="saas-cliente-modal-body">
+          <div class="filtros-grid">
+            <div>
+              <label for="modCod">Código</label>
+              <input id="modCod" class="form-control" type="text" placeholder="ex.: meu_modulo" maxlength="40" autocomplete="off" />
+            </div>
+            <div>
+              <label for="modNm">Nome na tela</label>
+              <input id="modNm" class="form-control" type="text" placeholder="Nome exibido" maxlength="120" />
+            </div>
+            <div>
+              <label for="modOrd">Ordem</label>
+              <input id="modOrd" class="form-control" type="number" value="0" />
+            </div>
+            <div>
+              <label for="modFg">Ativo</label>
+              <select id="modFg" class="form-control">
+                <option value="S">Sim</option>
+                <option value="N">Não</option>
+              </select>
+            </div>
+          </div>
+          <div class="saas-msg" id="msgModuloModal" style="display:none;"></div>
+        </div>
+        <div class="saas-cliente-modal-actions">
+          <button type="button" class="btn-filtro btn-filtro-novo" id="btnSalvarModulo"><i class="bx bx-save"></i> <span>Salvar</span></button>
+          <button type="button" class="btn-filtro btn-filtro-limpar" id="btnCancelModulo"><i class="bx bx-x"></i> <span>Cancelar</span></button>
+        </div>
+      </div>
+    </div>
+
+    <div id="saasClienteModal" class="modal saas-cliente-modal" style="display:none" role="dialog" aria-modal="true" aria-labelledby="saasClienteModalTitulo">
+      <div class="modal-content saas-cliente-modal-panel">
+        <div class="saas-cliente-modal-header">
+          <h3 id="saasClienteModalTitulo"><i class="bx bx-user-plus"></i> Novo cliente</h3>
+          <button type="button" class="saas-cliente-modal-x" id="saasClienteModalX" aria-label="Fechar" title="Fechar">&times;</button>
+        </div>
+        <div class="saas-cliente-modal-body">
           <div class="filtros-grid">
             <div>
               <label for="newTenantId">Tenant ID</label>
-              <input id="newTenantId" class="form-control" type="text" placeholder="ex.: cliente_x" />
+              <input id="newTenantId" class="form-control" type="text" placeholder="ex.: cliente_x" autocomplete="off" />
             </div>
             <div>
               <label for="newClienteNm">Empresa</label>
@@ -690,61 +924,12 @@
               <input id="newClienteMaxSessoes" class="form-control" type="number" min="1" max="999999" placeholder="usa o limite do plano" />
             </div>
           </div>
-          <div class="filtros-actions">
-            <button type="button" class="btn-filtro btn-filtro-novo" id="btnAddCliente"><i class="bx bx-plus"></i> <span>Cadastrar cliente</span></button>
-            <button type="button" class="btn-filtro btn-filtro-limpar" id="btnCancelCliente" hidden><i class="bx bx-x"></i> <span>Cancelar</span></button>
-          </div>
           <div class="saas-msg" id="msgClienteNovo" style="display:none;"></div>
         </div>
-        <div class="filtros-box">
-          <h3><i class="bx bx-list-ul"></i> Clientes cadastrados</h3>
-          <div class="saas-msg" id="msgClientesLista" style="display: none;"></div>
-          <div id="tableClientesWrap" style="overflow-x:auto;"><p class="saas-op-info">Carregando…</p></div>
+        <div class="saas-cliente-modal-actions">
+          <button type="button" class="btn-filtro btn-filtro-novo" id="btnAddCliente"><i class="bx bx-save"></i> <span>Salvar</span></button>
+          <button type="button" class="btn-filtro btn-filtro-limpar" id="btnCancelCliente"><i class="bx bx-x"></i> <span>Cancelar</span></button>
         </div>
-      </div>
-    </div>
-
-    <div id="tab-override" class="tab-content">
-      <div class="filtros-box">
-        <h3><i class="bx bx-slider-alt"></i> Override por tenant</h3>
-        <div class="filtros-grid" style="max-width: 100%;">
-          <div style="max-width: 420px;">
-            <label for="saasTenantSelect">Tenant</label>
-            <select id="saasTenantSelect" class="form-control"><option value="">Carregando…</option></select>
-          </div>
-        </div>
-        <div id="saasModulosCard" style="display: none; margin-top: 20px;">
-          <h4 class="saas-subsection-title" style="margin-top: 0;"><i class="bx bx-toggle-right"></i> Módulos (override)</h4>
-          <div class="saas-modulos-grid" id="saasModulosGrid"></div>
-          <div class="filtros-actions">
-            <button type="button" class="btn-filtro btn-filtro-aplicar" id="saasBtnSalvar" disabled><i class="bx bx-save"></i> <span>Salvar override</span></button>
-          </div>
-          <div class="saas-msg" id="saasMsg" style="display: none;"></div>
-        </div>
-      </div>
-    </div>
-
-    <div id="tab-limpeza" class="tab-content">
-      <div class="filtros-box">
-        <h3><i class="bx bx-trash"></i> Limpar dados de teste</h3>
-        <p class="saas-op-info">Marque as tabelas deste tenant. O nome do bloco marca todas dele. Se a tabela escolhida tem filhos que travam a exclusão, esses filhos entram junto e a conta mostra isso. Usuário, plano, cidade e tipo de atividade ficam. O contador volta a 1 só quando a tabela fica vazia.</p>
-        <div class="saas-msg" id="msgLimpeza" style="display:none;"></div>
-        <div class="filtros-grid">
-          <div>
-            <label for="limpezaTenant">Tenant</label>
-            <select id="limpezaTenant" class="form-control"></select>
-          </div>
-          <div>
-            <label for="limpezaConfirmacao">Digite o identificador para confirmar</label>
-            <input id="limpezaConfirmacao" class="form-control" maxlength="64" autocomplete="off" spellcheck="false" placeholder="o mesmo valor do tenant">
-          </div>
-        </div>
-        <div id="limpezaGrupos" style="display:flex;flex-direction:column;gap:8px;margin:8px 0 14px;"></div>
-        <div class="filtros-actions">
-          <button type="button" id="btnLimpezaPrever" class="btn-filtro btn-filtro-aplicar"><i class="bx bx-search"></i> Ver quantidades</button>
-          <button type="button" id="btnLimpezaExecutar" class="btn-filtro btn-filtro-danger"><i class="bx bx-trash"></i> Limpar</button>
-        </div>
-        <div id="limpezaResultado" style="margin-top:14px;"></div>
       </div>
     </div>
 
@@ -768,6 +953,7 @@
   </div>
 
   <script src="/js/utils.js"></script>
-  <script src="/modulos/gerenciar-tenants-saas/js/script.js?v=20261126fuso"></script>
+  <script src="/js/grid-editor.js?v=20261127noDash"></script>
+  <script src="/modulos/gerenciar-tenants-saas/js/script.js?v=20261127cliRevert"></script>
 </body>
 </html>

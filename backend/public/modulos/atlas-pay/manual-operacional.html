@@ -1,0 +1,330 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Manual operacional — Atlas Pay</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap" rel="stylesheet" />
+  <link href="https://unpkg.com/boxicons@2.1.4/css/boxicons.min.css" rel="stylesheet" />
+  <style>
+    :root {
+      --ink: #0f172a;
+      --muted: #475569;
+      --line: #e2e8f0;
+      --bg: #f8fafc;
+      --card: #fff;
+      --accent: #0d2137;
+      --ok: #166534;
+      --warn: #b45309;
+      --bad: #b91c1c;
+      --soft: #ecfdf5;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: 'Plus Jakarta Sans', system-ui, sans-serif;
+      color: var(--ink);
+      background: linear-gradient(180deg, #f1f5f9 0%, var(--bg) 40%);
+      line-height: 1.55;
+    }
+    .wrap { max-width: 880px; margin: 0 auto; padding: 28px 20px 64px; }
+    header {
+      background: var(--card);
+      border: 1px solid var(--line);
+      border-radius: 16px;
+      padding: 24px 28px;
+      margin-bottom: 20px;
+      box-shadow: 0 4px 16px rgba(15, 23, 42, 0.04);
+    }
+    header h1 {
+      margin: 0 0 8px;
+      font-size: 1.65rem;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+    header p { margin: 0; color: var(--muted); }
+    .badge {
+      display: inline-block;
+      font-size: 12px;
+      font-weight: 700;
+      padding: 4px 10px;
+      border-radius: 999px;
+      background: #e2e8f0;
+      color: #334155;
+      margin-top: 12px;
+    }
+    nav.toc {
+      background: var(--card);
+      border: 1px solid var(--line);
+      border-radius: 14px;
+      padding: 16px 20px;
+      margin-bottom: 22px;
+    }
+    nav.toc h2 { margin: 0 0 10px; font-size: 1rem; }
+    nav.toc ol { margin: 0; padding-left: 1.2rem; color: var(--muted); }
+    nav.toc a { color: var(--accent); font-weight: 600; text-decoration: none; }
+    nav.toc a:hover { text-decoration: underline; }
+    section {
+      background: var(--card);
+      border: 1px solid var(--line);
+      border-radius: 14px;
+      padding: 22px 24px;
+      margin-bottom: 16px;
+    }
+    section h2 {
+      margin: 0 0 12px;
+      font-size: 1.2rem;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    section h3 { margin: 18px 0 8px; font-size: 1.02rem; }
+    ol.steps { padding-left: 1.25rem; margin: 0; }
+    ol.steps > li { margin: 0 0 10px; }
+    .callout {
+      border-left: 4px solid #0ea5e9;
+      background: #f0f9ff;
+      padding: 12px 14px;
+      border-radius: 0 10px 10px 0;
+      margin: 12px 0;
+      color: #0c4a6e;
+      font-size: 0.95rem;
+    }
+    .callout.warn { border-color: var(--warn); background: #fffbeb; color: #78350f; }
+    .callout.bad { border-color: var(--bad); background: #fef2f2; color: #7f1d1d; }
+    .callout.ok { border-color: var(--ok); background: var(--soft); color: #14532d; }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 0.92rem;
+      margin: 10px 0;
+    }
+    th, td {
+      border: 1px solid var(--line);
+      padding: 8px 10px;
+      text-align: left;
+      vertical-align: top;
+    }
+    th { background: #f8fafc; }
+    code {
+      font-family: ui-monospace, Consolas, monospace;
+      font-size: 0.88em;
+      background: #f1f5f9;
+      padding: 1px 5px;
+      border-radius: 4px;
+    }
+    .checklist { list-style: none; padding: 0; margin: 0; }
+    .checklist li {
+      padding: 8px 0 8px 28px;
+      position: relative;
+      border-bottom: 1px dashed var(--line);
+    }
+    .checklist li:before {
+      content: '☐';
+      position: absolute;
+      left: 0;
+      color: var(--muted);
+    }
+    footer {
+      margin-top: 24px;
+      color: var(--muted);
+      font-size: 0.85rem;
+      text-align: center;
+    }
+    .grid-2 {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 12px;
+    }
+    @media (max-width: 720px) {
+      .grid-2 { grid-template-columns: 1fr; }
+    }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <header>
+      <h1><i class="bx bx-wallet"></i> Manual operacional — Atlas Pay</h1>
+      <p>Passo a passo para configurar, cobrar, quitar e não travar a operação por engano.</p>
+      <span class="badge">HML local · regra padrão DESLIGADA · sem Pix</span>
+    </header>
+
+    <nav class="toc">
+      <h2>Índice</h2>
+      <ol>
+        <li><a href="#ideia">Ideia em 30 segundos</a></li>
+        <li><a href="#nao-errar">Antes de ligar a regra</a></li>
+        <li><a href="#contrato">1. Configurar o contrato</a></li>
+        <li><a href="#conexao">2. Cobrança de conexão (viagens)</a></li>
+        <li><a href="#uso">3. Fechamento de uso (mensal)</a></li>
+        <li><a href="#cobrancas">4. Cobranças, baixa e cancelamento</a></li>
+        <li><a href="#inad">5. Alerta e bloqueio</a></li>
+        <li><a href="#lixo">Sobre a tabela “cheia de canceladas”</a></li>
+        <li><a href="#checklist">Checklist rápido</a></li>
+      </ol>
+    </nav>
+
+    <section id="ideia">
+      <h2><i class="bx bx-bulb"></i> Ideia em 30 segundos</h2>
+      <p>O Atlas Pay tem <strong>dois tipos de cobrança</strong>:</p>
+      <div class="grid-2">
+        <div class="callout ok">
+          <strong>A. Conexão</strong><br />
+          Quando a torre <em>confirma</em> um motorista na viagem.<br />
+          Quem deve: <strong>motorista</strong>.
+        </div>
+        <div class="callout">
+          <strong>B. Uso da plataforma</strong><br />
+          Fechamento mensal do agenciador.<br />
+          Quem deve: <strong>tenant (empresa)</strong>.
+        </div>
+      </div>
+      <p>Enquanto a <strong>regra financeira</strong> estiver <code>Não (N)</code>, <strong>nada é cobrado</strong> — a torre funciona normalmente.</p>
+    </section>
+
+    <section id="nao-errar">
+      <h2><i class="bx bx-error-circle"></i> Antes de ligar a regra</h2>
+      <div class="callout warn">
+        No tenant <code>default</code> a regra deve permanecer <strong>DESLIGADA</strong>, salvo teste controlado.
+        Ligar <code>Sim (S)</code> em cliente real só depois de validar o fluxo abaixo em homologação.
+      </div>
+      <ul>
+        <li>Você precisa da atividade de menu <strong>Atlas Pay</strong> e, no STRICT, das permissões <code>FIN_*</code>.</li>
+        <li>Admin do HML já tem perfil <code>FINANCEIRO_ADMIN</code>.</li>
+        <li>Pix ainda <strong>não existe</strong> — baixa é manual.</li>
+      </ul>
+    </section>
+
+    <section id="contrato">
+      <h2><i class="bx bx-file"></i> 1. Configurar o contrato</h2>
+      <p>Aba <strong>Contratos</strong>.</p>
+      <ol class="steps">
+        <li>Defina <strong>Regra financeira ativa</strong>: deixe <code>Não</code> até estar pronto.</li>
+        <li>Defina <strong>Política de inadimplência</strong>:
+          <ul>
+            <li><code>Alerta</code> — avisa e deixa operar.</li>
+            <li><code>Bloqueio</code> — só trava operação <em>nova</em> se houver cobrança <strong>vencida</strong>.</li>
+          </ul>
+        </li>
+        <li>Em <strong>A. Conexão</strong>, adicione componente (ex.: Fixo <code>10000</code> = R$ 100,00).</li>
+        <li>Em <strong>B. Uso da plataforma</strong>, adicione componente se for cobrar o mês (fixo / % / por carga anunciada).</li>
+        <li>Clique <strong>Publicar versão</strong>. Isso fecha a versão anterior e abre a nova.</li>
+      </ol>
+      <div class="callout">
+        Cobranças já geradas <strong>não mudam de valor</strong> quando você publica outra versão.
+        O valor fica congelado no momento da geração.
+      </div>
+    </section>
+
+    <section id="conexao">
+      <h2><i class="bx bx-trip"></i> 2. Cobrança de conexão (fora desta tela)</h2>
+      <p>Isso acontece em <strong>Gerenciar Viagens</strong>, não dentro do Atlas Pay.</p>
+      <ol class="steps">
+        <li>Motorista <strong>aceita</strong> → <em>não gera</em> cobrança.</li>
+        <li>Torre <strong>confirma</strong> → se regra = <code>S</code>, nasce cobrança <code>ABERTA</code> (mesmo clique / mesma transação).</li>
+        <li>Se a torre <strong>desiste</strong> (reativar ou desistir lote) ou <strong>remove o motorista confirmado</strong> → a cobrança é cancelada.</li>
+        <li>Na reativação, informe a <strong>origem</strong>: Torre ou Motorista (rastreio do cancelamento).</li>
+      </ol>
+      <div class="callout warn">
+        Remover motorista <em>sem</em> convocação CONFIRMADA não mexe no financeiro.
+        Confirmar de novo (depois de reativar) pode gerar <strong>outra</strong> cobrança.
+      </div>
+    </section>
+
+    <section id="uso">
+      <h2><i class="bx bx-calendar-check"></i> 3. Fechamento de uso (mensal)</h2>
+      <p>Aba <strong>Fechamento de uso</strong>. Ordem certa — não pule etapas:</p>
+      <ol class="steps">
+        <li><strong>Competência</strong> no formato <code>AAAA-MM</code> (ex.: <code>2026-11</code>).</li>
+        <li><strong>Prévia (sem gravar)</strong> — só olha números e exceções.</li>
+        <li>Se aparecer frete inválido / lacuna → corrija as viagens/contratos e volte.</li>
+        <li><strong>Calcular</strong> — grava rascunho.</li>
+        <li><strong>Recalcular</strong> — só enquanto não estiver aprovado.</li>
+        <li><strong>Aprovar</strong> — congela a memória (não dá para “descongelar” fácil).</li>
+        <li><strong>Gerar cobrança</strong> — cria a dívida do tenant (ação separada, explícita).</li>
+      </ol>
+      <div class="callout bad">
+        Com regra <code>N</code>, a prévia/cálculo pode existir, mas <strong>aprovação/geração ficam bloqueadas</strong>.
+        É esperado — não é bug.
+      </div>
+    </section>
+
+    <section id="cobrancas">
+      <h2><i class="bx bx-receipt"></i> 4. Cobranças, baixa e cancelamento</h2>
+      <p>Aba <strong>Cobranças</strong>.</p>
+      <ol class="steps">
+        <li>Filtro padrão: <strong>Aberta</strong> (para não misturar com histórico de teste).</li>
+        <li>Clique <strong>Ver</strong> na linha → detalhe + eventos.</li>
+        <li>Informe o motivo e use:
+          <ul>
+            <li><strong>Baixa manual</strong> — marca como paga (quando o dinheiro foi recebido fora do Pix).</li>
+            <li><strong>Cancelar cobrança</strong> — desfaz a dívida (se já estava paga, reverte a baixa e cancela).</li>
+          </ul>
+        </li>
+      </ol>
+      <table>
+        <thead>
+          <tr><th>Status</th><th>Significado</th><th>O que fazer</th></tr>
+        </thead>
+        <tbody>
+          <tr><td><code>ABERTA</code></td><td>Dívida em aberto</td><td>Baixar ou cancelar</td></tr>
+          <tr><td><code>PAGA</code></td><td>Quitada</td><td>Só consultar (ou cancelar com reversão, se necessário)</td></tr>
+          <tr><td><code>CANCELADA</code></td><td>Histórico — não é dívida</td><td>Não apaga; use filtro</td></tr>
+        </tbody>
+      </table>
+    </section>
+
+    <section id="inad">
+      <h2><i class="bx bx-shield"></i> 5. Alerta e bloqueio</h2>
+      <table>
+        <thead>
+          <tr><th>Situação</th><th>Política</th><th>Efeito</th></tr>
+        </thead>
+        <tbody>
+          <tr><td>ABERTA ainda no prazo</td><td>qualquer</td><td>Aviso; opera</td></tr>
+          <tr><td>ABERTA vencida</td><td>ALERTA</td><td>Aviso; opera</td></tr>
+          <tr><td>ABERTA vencida</td><td>BLOQUEIO</td><td>403 em: aceitar carga/convocação, criar convocação, confirmar, disparar campanha</td></tr>
+          <tr><td>PAGA / CANCELADA / regra N</td><td>—</td><td>Liberado</td></tr>
+        </tbody>
+      </table>
+      <p>Não bloqueia login, mapa, estoque, consulta nem viagem já confirmada.</p>
+    </section>
+
+    <section id="lixo">
+      <h2><i class="bx bx-trash"></i> Sobre a tabela “cheia de canceladas”</h2>
+      <p>
+        No HML, o KPI <strong>CANCELADAS</strong> e a lista com status Cancelada vêm dos
+        <strong>testes automatizados</strong> (fixtures). O financeiro é <em>append-only</em>:
+        não se apaga cobrança — cancela e guarda o histórico.
+      </p>
+      <div class="callout ok">
+        Isso <strong>não é dívida</strong>. Com o filtro em <strong>Aberta</strong>, a tela de operação fica limpa.
+        Os 31 cancelados do tenant <code>default</code> são resíduo de desenvolvimento — esperado neste ambiente.
+      </div>
+      <p>Não rode limpeza destrutiva em <code>FIN_COBRANCA</code> sem autorização: quebra auditoria e testes.</p>
+    </section>
+
+    <section id="checklist">
+      <h2><i class="bx bx-list-check"></i> Checklist rápido (não errar)</h2>
+      <ul class="checklist">
+        <li>Contrato publicado com componentes corretos</li>
+        <li>Regra ainda em <strong>N</strong> até o go-live combinado</li>
+        <li>Testei: aceite sem cobrança → confirme com regra S em tenant de teste → vi a ABERTA</li>
+        <li>Testei: reativar / remover motorista → vi CANCELADA + eventos</li>
+        <li>Fechamento: prévia → calcular → (só depois) aprovar → gerar</li>
+        <li>Cobranças filtradas em Aberta no dia a dia</li>
+        <li>Política de inadimplência alinhada com o comercial (ALERTA vs BLOQUEIO)</li>
+        <li>Sei que Pix ainda não existe — baixa é manual</li>
+      </ul>
+    </section>
+
+    <footer>
+      Atlas Cargo · Atlas Pay · Manual operacional · 27/11/2026<br />
+      Documento vivo junto ao módulo. Detalhe técnico: <code>docs/ATLAS_PAY_FECHAMENTO_FASES_1_A_4.md</code>
+    </footer>
+  </div>
+</body>
+</html>

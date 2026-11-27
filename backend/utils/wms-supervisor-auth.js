@@ -56,10 +56,14 @@ async function validarAutorizadorComSenha(login, senha, tenantId) {
 
 /**
  * Verifica se o login possui tipo de atividade com DSPROGRAMA igual a dsprograma (tenant-aware quando possível).
+ * O placeholder $3 é sempre o tenant default do catálogo (igual ao menu / SaaS admin) —
+ * NÃO o tenant da sessão. O escopo do usuário vem de USUARIO.TENANT_ID no JOIN.
+ * O argumento tenantId é aceito por compatibilidade com callers antigos e é ignorado no SQL.
  */
 async function usuarioTemPrograma(login, tenantId, dsprograma) {
   const prog = String(dsprograma || '').trim();
   if (!login || !prog) return false;
+  const defTid = getDefaultTenantId();
   try {
     const vis = await tipoRowVisibleForUserClause(pool, 't', 'u', '$3');
     const r = await pool.query(
@@ -72,7 +76,7 @@ async function usuarioTemPrograma(login, tenantId, dsprograma) {
           AND ${vis}
           AND TRIM(COALESCE(t."DSPROGRAMA", '')) = $2
         LIMIT 1`,
-      [String(login).trim(), prog, tenantId]
+      [String(login).trim(), prog, defTid]
     );
     return r.rowCount > 0;
   } catch (e) {

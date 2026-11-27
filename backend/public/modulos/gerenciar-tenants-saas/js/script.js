@@ -1,10 +1,42 @@
 (function () {
   var catalogoModulos = [];
   var planosList = [];
+  var planosPorId = {};
+  var planosModulosResumo = {};
   var editandoTenant = null;
+  var editandoModulo = null;
+  var editandoPlano = null;
   var salvandoCliente = false;
+  var salvandoModulo = false;
+  var salvandoPlano = false;
   var decidindoPedido = false;
   var clientesPorId = {};
+  var catalogoPorCodigo = {};
+  var gridCatalogo = null;
+  var gridPlanos = null;
+  var gridClientes = null;
+  var gridPedidos = null;
+
+  /** Só toast (padrão Usuários). Nunca pinta texto verde/vermelho no meio da tela. */
+  function toastMsg(text, type) {
+    var t = text == null ? '' : String(text).trim();
+    if (!t) return;
+    if (/…$|\.\.\.$/.test(t) || /^(Salvando|Carregando|Excluindo|Criando|Removendo)/i.test(t)) return;
+    var kind =
+      type === false || type === 'error' ? 'error' : type === 'warning' ? 'warning' : 'success';
+    if (typeof window.showMessage === 'function') {
+      window.showMessage(t, kind, false);
+      return;
+    }
+    if (typeof showMessage === 'function') {
+      showMessage(t, kind, false);
+    }
+  }
+
+  function setGridCount(spanId, n) {
+    var el = document.getElementById(spanId);
+    if (el) el.textContent = String(n) + ' registro(s) encontrado(s)';
+  }
 
   function apiPrefix() {
     var pn = window.location.pathname || '';
@@ -28,12 +60,18 @@
     if (el) el.classList.remove('show');
   }
 
+  /** Legado: limpa o div e manda feedback só no toast (ignora “Salvando…” etc.). */
   function showMsg(elId, text, ok) {
     var el = document.getElementById(elId);
-    if (!el) return;
-    el.style.display = text ? 'block' : 'none';
-    el.textContent = text || '';
-    el.className = 'saas-msg ' + (ok ? 'ok' : 'err');
+    if (el) {
+      el.style.display = 'none';
+      el.textContent = '';
+      el.className = 'saas-msg';
+    }
+    var t = text == null ? '' : String(text).trim();
+    if (!t) return;
+    if (/…$|\.\.\.$/.test(t) || /^(Salvando|Carregando|Excluindo|Criando|Removendo)/i.test(t)) return;
+    toastMsg(t, ok ? 'success' : 'error');
   }
 
   function tabSwitch(name) {
@@ -77,70 +115,173 @@
       catalogoModulos = data.modulos || [];
       renderCatalogTable();
     } catch (e) {
-      document.getElementById('tableCatalogoWrap').innerHTML =
-        '<p class="saas-msg err">' + (e.message || 'Erro') + '</p>';
+      setGridCount('catalogoGridCountText', 0);
+      var gCat = document.getElementById('catalogoGrid');
+      if (gCat) gCat.innerHTML = '<p class="empty">' + escapeHtml(e.message || 'Erro') + '</p>';
+      toastMsg(e.message || 'Erro', 'error');
     } finally {
       hideOverlay();
     }
   }
 
+  function normalizeCatalogoRow(m) {
+    var cod = String(m.CODIGO || m.codigo || '');
+    return {
+      CODIGO: cod,
+      NM_EXIBICAO: m.NM_EXIBICAO || m.nm_exibicao || '',
+      ORDEM: m.ORDEM != null ? m.ORDEM : m.ordem,
+      FGACTIVE: m.FGACTIVE || m.fgactive || 'S',
+      _raw: m,
+    };
+  }
+
+  function initGridCatalogo() {
+    if (gridCatalogo || typeof window.GridEditor === 'undefined') return gridCatalogo;
+    gridCatalogo = new window.GridEditor({
+      container: '#catalogoGrid',
+      columns: [
+        { field: 'CODIGO', header: 'Código', editable: false, isId: true, width: '140px' },
+        { field: 'NM_EXIBICAO', header: 'Nome', editable: false },
+        { field: 'ORDEM', header: 'Ordem', editable: false, width: '90px', align: 'right' },
+        {
+          field: 'FGACTIVE',
+          header: 'Ativo',
+          editable: false,
+          width: '110px',
+          format: function (val) {
+            return val === 'S' ? '✓ Sim' : '✗ Não';
+          },
+        },
+      ],
+      onBeforeEdit: function (id) {
+        abrirEdicaoModulo(catalogoPorCodigo[id] || { CODIGO: id });
+        return false;
+      },
+      onDelete: function (id) {
+        confirmExcluirModuloCatalogo(id).then(function (ok) {
+          if (ok) deleteModuloRow(id);
+        });
+      },
+    });
+    return gridCatalogo;
+  }
+
   function renderCatalogTable() {
-    var wrap = document.getElementById('tableCatalogoWrap');
+    catalogoPorCodigo = {};
+    var rows = (catalogoModulos || []).map(function (m) {
+      var row = normalizeCatalogoRow(m);
+      catalogoPorCodigo[row.CODIGO] = m;
+      return row;
+    });
+    setGridCount('catalogoGridCountText', rows.length);
+    var wrap = document.getElementById('catalogoGrid');
     if (!wrap) return;
-    if (!catalogoModulos.length) {
-      wrap.innerHTML = '<p class="saas-op-info">Nenhum módulo. Rode o script SQL ou cadastre acima.</p>';
+    if (!rows.length) {
+      wrap.innerHTML = '<p class="empty">Nenhum módulo. Use Novo ou rode o script SQL do catálogo.</p>';
       return;
     }
-    var html =
-      '<table class="estatisticas-table"><thead><tr><th>Código</th><th>Nome</th><th>Ordem</th><th>Ativo</th><th>Ações</th></tr></thead><tbody>';
-    catalogoModulos.forEach(function (m) {
-      var cod = m.CODIGO || m.codigo;
-      var nm = (m.NM_EXIBICAO || m.nm_exibicao || '').replace(/"/g, '&quot;');
-      var ord = m.ORDEM != null ? m.ORDEM : m.ordem;
-      var fg = m.FGACTIVE || m.fgactive || 'S';
-      html += '<tr data-cod="' + String(cod).replace(/"/g, '') + '">';
-      html += '<td><code>' + escapeHtml(String(cod)) + '</code></td>';
-      html +=
-        '<td><input type="text" class="inp-nm form-control" value="' +
-        nm +
-        '" style="max-width:280px;" /></td>';
-      html +=
-        '<td><input type="number" class="inp-ord form-control" value="' +
-        ord +
-        '" style="width:88px;" /></td>';
-      html += '<td><select class="sel-fg form-control" style="width:auto;min-width:88px;">';
-      html += '<option value="S"' + (fg === 'S' ? ' selected' : '') + '>Sim</option>';
-      html += '<option value="N"' + (fg === 'N' ? ' selected' : '') + '>Não</option>';
-      html += '</select></td>';
-      html +=
-        '<td class="saas-catalogo-acoes"><button type="button" class="btn-filtro btn-filtro-aplicar btn-save-row"><i class="bx bx-save"></i> Salvar</button> ';
-      html +=
-        '<button type="button" class="btn-filtro saas-btn-excluir btn-del-modulo" title="Remover do catálogo"><i class="bx bx-trash"></i> Excluir</button></td>';
-      html += '</tr>';
-    });
-    html += '</tbody></table>';
-    wrap.innerHTML = html;
-    wrap.querySelectorAll('.btn-save-row').forEach(function (btn) {
-      btn.addEventListener('click', function () {
-        var tr = btn.closest('tr');
-        if (!tr) return;
-        var cod = tr.getAttribute('data-cod');
-        var nm = tr.querySelector('.inp-nm');
-        var ord = tr.querySelector('.inp-ord');
-        var fg = tr.querySelector('.sel-fg');
-        saveModuloRow(cod, nm && nm.value, ord && ord.value, fg && fg.value);
-      });
-    });
-    wrap.querySelectorAll('.btn-del-modulo').forEach(function (btn) {
-      btn.addEventListener('click', function () {
-        var tr = btn.closest('tr');
-        if (!tr) return;
-        var cod = tr.getAttribute('data-cod');
-        confirmExcluirModuloCatalogo(cod).then(function (ok) {
-          if (ok) deleteModuloRow(cod);
+    if (typeof window.GridEditor === 'undefined') {
+      wrap.innerHTML = '<p class="empty">GridEditor não carregou. Atualize a página.</p>';
+      return;
+    }
+    initGridCatalogo();
+    gridCatalogo.render(rows);
+  }
+
+  function fecharModuloModal() {
+    var modal = document.getElementById('saasModuloModal');
+    if (modal) {
+      modal.classList.remove('is-open');
+      modal.style.display = 'none';
+    }
+  }
+
+  function abrirModuloModal() {
+    var modal = document.getElementById('saasModuloModal');
+    if (!modal) return;
+    modal.style.display = 'flex';
+    modal.classList.add('is-open');
+  }
+
+  function limparFormularioModulo() {
+    editandoModulo = null;
+    setCampo('modCod', '');
+    setCampo('modNm', '');
+    setCampo('modOrd', '0');
+    setCampo('modFg', 'S');
+    var cod = document.getElementById('modCod');
+    if (cod) cod.readOnly = false;
+    var titulo = document.getElementById('saasModuloModalTitulo');
+    if (titulo) titulo.innerHTML = '<i class="bx bx-plus-circle"></i> Novo módulo';
+    showMsg('msgModuloModal', '', true);
+  }
+
+  function abrirNovoModulo() {
+    limparFormularioModulo();
+    abrirModuloModal();
+    var foc = document.getElementById('modCod');
+    if (foc) foc.focus();
+  }
+
+  function abrirEdicaoModulo(m) {
+    if (!m) return;
+    limparFormularioModulo();
+    editandoModulo = String(m.CODIGO || m.codigo || '');
+    setCampo('modCod', editandoModulo);
+    var cod = document.getElementById('modCod');
+    if (cod) cod.readOnly = true;
+    setCampo('modNm', m.NM_EXIBICAO || m.nm_exibicao || '');
+    setCampo('modOrd', m.ORDEM != null ? m.ORDEM : m.ordem != null ? m.ordem : 0);
+    setCampo('modFg', m.FGACTIVE || m.fgactive || 'S');
+    var titulo = document.getElementById('saasModuloModalTitulo');
+    if (titulo) titulo.innerHTML = '<i class="bx bx-edit"></i> Editar módulo';
+    abrirModuloModal();
+    var foc = document.getElementById('modNm');
+    if (foc) foc.focus();
+  }
+
+  async function salvarModuloDoModal() {
+    if (salvandoModulo) return;
+    var cod = valorCampo('modCod');
+    var nm = valorCampo('modNm');
+    var ord = valorCampo('modOrd') || '0';
+    var fg = valorCampo('modFg') || 'S';
+    if (!cod) {
+      showMsg('msgModuloModal', 'Informe o código.', false);
+      return;
+    }
+    if (!nm) {
+      showMsg('msgModuloModal', 'Informe o nome na tela.', false);
+      return;
+    }
+    salvandoModulo = true;
+    showMsg('msgModuloModal', 'Salvando…', true);
+    try {
+      if (editandoModulo) {
+        await saveModuloRow(editandoModulo, nm, ord, fg);
+        fecharModuloModal();
+        toastMsg('Módulo atualizado.', 'success');
+      } else {
+        var r = await fetch(apiPrefix() + '/api/saas/modulos-catalogo', {
+          method: 'POST',
+          headers: getAuthJsonHeaders(),
+          body: JSON.stringify({ codigo: cod, nm_exibicao: nm, ordem: ord }),
         });
-      });
-    });
+        var data = await r.json();
+        if (!r.ok) throw new Error(data.error || 'Erro');
+        if (fg === 'N') {
+          await saveModuloRow(cod, nm, ord, 'N');
+        } else {
+          await loadCatalog();
+        }
+        fecharModuloModal();
+        toastMsg('Módulo cadastrado.', 'success');
+      }
+    } catch (e) {
+      showMsg('msgModuloModal', e.message || 'Erro', false);
+    } finally {
+      salvandoModulo = false;
+    }
   }
 
   function escapeHtml(s) {
@@ -175,7 +316,8 @@
     newYes.className = opts.confirmClass || 'btn-filtro btn-filtro-danger';
     newYes.innerHTML = opts.confirmHtml != null ? opts.confirmHtml : '<i class="bx bx-check"></i> OK';
     newNo.className = 'btn-filtro btn-filtro-limpar';
-    newNo.innerHTML = '<i class="bx bx-x"></i> Cancelar';
+    newNo.innerHTML = opts.cancelHtml != null ? opts.cancelHtml : '<i class="bx bx-x"></i> Cancelar';
+    newNo.style.display = opts.hideCancel ? 'none' : '';
     if (confirmYes.parentNode) {
       confirmYes.parentNode.replaceChild(newYes, confirmYes);
       confirmNo.parentNode.replaceChild(newNo, confirmNo);
@@ -184,6 +326,7 @@
     return new Promise(function (resolve) {
       function fechar(aceitou) {
         modal.style.display = 'none';
+        newNo.style.display = '';
         resolve(aceitou);
       }
       newYes.addEventListener('click', function () {
@@ -229,24 +372,19 @@
   }
 
   async function saveModuloRow(codigo, nm, ord, fg) {
-    showMsg('msgCatalogo', 'Salvando…', true);
-    try {
-      var r = await fetch(apiPrefix() + '/api/saas/modulos-catalogo/' + encodeURIComponent(codigo), {
-        method: 'PUT',
-        headers: getAuthJsonHeaders(),
-        body: JSON.stringify({ nm_exibicao: nm, ordem: ord, fgactive: fg }),
-      });
-      var data = await r.json();
-      if (!r.ok) throw new Error(data.error || 'Erro');
-      showMsg('msgCatalogo', 'Salvo.', true);
-      await loadCatalog();
-    } catch (e) {
-      showMsg('msgCatalogo', e.message || 'Erro', false);
-    }
+    var r = await fetch(apiPrefix() + '/api/saas/modulos-catalogo/' + encodeURIComponent(codigo), {
+      method: 'PUT',
+      headers: getAuthJsonHeaders(),
+      body: JSON.stringify({ nm_exibicao: nm, ordem: ord, fgactive: fg }),
+    });
+    var data = await r.json();
+    if (!r.ok) throw new Error(data.error || 'Erro');
+    await loadCatalog();
+    return data;
   }
 
   async function deleteModuloRow(codigo) {
-    showMsg('msgCatalogo', 'Excluindo…', true);
+    toastMsg('Excluindo…', 'warning');
     showOverlay();
     try {
       var r = await fetch(apiPrefix() + '/api/saas/modulos-catalogo/' + encodeURIComponent(codigo), {
@@ -281,137 +419,100 @@
                 : 'Erro ao excluir (' + r.status + ').');
         throw new Error(msg);
       }
-      showMsg('msgCatalogo', 'Módulo excluído do catálogo.', true);
+      toastMsg('Módulo excluído do catálogo.', 'success');
       await loadCatalog();
     } catch (e) {
-      showMsg('msgCatalogo', e.message || 'Erro', false);
+      toastMsg(e.message || 'Erro', 'error');
     } finally {
       hideOverlay();
     }
   }
 
-  document.getElementById('btnAddModulo').addEventListener('click', async function () {
-    var cod = (document.getElementById('newCod') && document.getElementById('newCod').value) || '';
-    var nm = (document.getElementById('newNm') && document.getElementById('newNm').value) || '';
-    var ord = (document.getElementById('newOrd') && document.getElementById('newOrd').value) || '0';
-    showMsg('msgCatalogo', 'Salvando…', true);
-    try {
-      var r = await fetch(apiPrefix() + '/api/saas/modulos-catalogo', {
-        method: 'POST',
-        headers: getAuthJsonHeaders(),
-        body: JSON.stringify({ codigo: cod.trim(), nm_exibicao: nm.trim(), ordem: ord }),
-      });
-      var data = await r.json();
-      if (!r.ok) throw new Error(data.error || 'Erro');
-      showMsg('msgCatalogo', 'Módulo cadastrado.', true);
-      if (document.getElementById('newCod')) document.getElementById('newCod').value = '';
-      if (document.getElementById('newNm')) document.getElementById('newNm').value = '';
-      await loadCatalog();
-    } catch (e) {
-      showMsg('msgCatalogo', e.message || 'Erro', false);
-    }
-  });
+  var btnNovoModulo = document.getElementById('btnNovoModulo');
+  if (btnNovoModulo) {
+    btnNovoModulo.addEventListener('click', function () {
+      abrirNovoModulo();
+    });
+  }
+  var btnSalvarModulo = document.getElementById('btnSalvarModulo');
+  if (btnSalvarModulo) {
+    btnSalvarModulo.addEventListener('click', function () {
+      salvarModuloDoModal();
+    });
+  }
+  var btnCancelModulo = document.getElementById('btnCancelModulo');
+  if (btnCancelModulo) {
+    btnCancelModulo.addEventListener('click', function () {
+      fecharModuloModal();
+    });
+  }
+  var saasModuloModalX = document.getElementById('saasModuloModalX');
+  if (saasModuloModalX) {
+    saasModuloModalX.addEventListener('click', function () {
+      fecharModuloModal();
+    });
+  }
+  var saasModuloModal = document.getElementById('saasModuloModal');
+  if (saasModuloModal) {
+    saasModuloModal.addEventListener('click', function (ev) {
+      if (ev.target === saasModuloModal) fecharModuloModal();
+    });
+  }
 
-  async function loadPlanosPanel() {
-    showOverlay();
-    try {
-      var r = await fetch(apiPrefix() + '/api/saas/planos', { headers: getAuthJsonHeaders() });
-      var data = await r.json();
-      if (!r.ok) throw new Error(data.error || 'Erro');
-      planosList = data.planos || [];
-      var sel = document.getElementById('selPlano');
-      var selN = document.getElementById('newClientePlano');
-      [sel, selN].forEach(function (s) {
-        if (!s) return;
-        s.innerHTML = '';
-        if (!planosList.length) {
-          s.innerHTML = '<option value="">Nenhum plano</option>';
-          return;
+  function formatLimitePlano(v) {
+    return v != null && v !== '' ? String(v) : '∞';
+  }
+
+  function syncSelectPlanosCliente() {
+    var selN = document.getElementById('newClientePlano');
+    if (!selN) return;
+    var current = selN.value;
+    selN.innerHTML = '';
+    if (!planosList.length) {
+      selN.innerHTML = '<option value="">Nenhum plano</option>';
+      return;
+    }
+    planosList.forEach(function (p) {
+      var cd = p.CD_PLANO != null ? p.CD_PLANO : p.cd_plano;
+      var nm = p.NM_PLANO || p.nm_plano || cd;
+      var o = document.createElement('option');
+      o.value = String(cd);
+      o.textContent = nm;
+      selN.appendChild(o);
+    });
+    if (current) {
+      try {
+        if (selN.querySelector('option[value="' + String(current).replace(/"/g, '') + '"]')) {
+          selN.value = current;
         }
-        planosList.forEach(function (p) {
-          var cd = p.CD_PLANO != null ? p.CD_PLANO : p.cd_plano;
-          var nm = p.NM_PLANO || p.nm_plano || cd;
-          var o = document.createElement('option');
-          o.value = String(cd);
-          o.textContent = nm;
-          s.appendChild(o);
-        });
-      });
-      if (sel && sel.options.length && !sel.value) sel.selectedIndex = 0;
-      if (document.getElementById('selPlano')) {
-        document.getElementById('selPlano').onchange = function () {
-          loadPlanoModulos(this.value);
-        };
-        await loadPlanoModulos(sel.value);
-      }
-    } catch (e) {
-      showMsg('msgPlano', e.message || 'Erro', false);
-    } finally {
-      hideOverlay();
+      } catch (eSel) { /* ignore */ }
     }
   }
 
-  function syncPlanoAssentosField(cdPlano) {
-    var inp = document.getElementById('planoMaxAssentos');
-    if (!inp) return;
-    if (!cdPlano) {
-      inp.value = '';
-      return;
-    }
-    var maxV = null;
-    for (var i = 0; i < planosList.length; i++) {
-      var p = planosList[i];
-      var c = p.CD_PLANO != null ? p.CD_PLANO : p.cd_plano;
-      if (String(c) === String(cdPlano)) {
-        maxV = p.MAX_ASSENTOS_USUARIOS != null ? p.MAX_ASSENTOS_USUARIOS : p.max_assentos_usuarios;
-        break;
-      }
-    }
-    inp.value = maxV != null && maxV !== '' ? String(maxV) : '';
-  }
-
-  function syncPlanoSessoesField(cdPlano) {
-    var inp = document.getElementById('planoMaxSessoes');
-    if (!inp) return;
-    if (!cdPlano) {
-      inp.value = '';
-      return;
-    }
-    var maxV = null;
-    for (var j = 0; j < planosList.length; j++) {
-      var p2 = planosList[j];
-      var c2 = p2.CD_PLANO != null ? p2.CD_PLANO : p2.cd_plano;
-      if (String(c2) === String(cdPlano)) {
-        maxV =
-          p2.MAX_SESSOES_SIMULTANEAS != null ? p2.MAX_SESSOES_SIMULTANEAS : p2.max_sessoes_simultaneas;
-        break;
-      }
-    }
-    inp.value = maxV != null && maxV !== '' ? String(maxV) : '';
-  }
-
-  async function loadPlanoModulos(cdPlano) {
-    var grid = document.getElementById('planoModulosGrid');
-    syncPlanoAssentosField(cdPlano);
-    syncPlanoSessoesField(cdPlano);
-    if (!grid || !cdPlano) {
-      if (grid) grid.innerHTML = '<p class="saas-op-info">Selecione um plano.</p>';
-      return;
-    }
-    if (!catalogoModulos.length) {
-      var r0 = await fetch(apiPrefix() + '/api/saas/modulos-catalogo', { headers: getAuthJsonHeaders() });
-      var d0 = await r0.json();
-      catalogoModulos = d0.modulos || [];
-    }
+  async function fetchModulosDoPlano(cdPlano) {
     var r = await fetch(apiPrefix() + '/api/saas/planos/' + encodeURIComponent(cdPlano) + '/modulos', {
       headers: getAuthJsonHeaders(),
     });
     var data = await r.json();
-    var incluidos = {};
-    (data.modulos || []).forEach(function (row) {
-      var c = row.CODIGO_MODULO || row.codigo_modulo;
-      if (c) incluidos[String(c)] = true;
-    });
+    if (!r.ok) throw new Error(data.error || 'Erro ao carregar módulos do plano.');
+    return data.modulos || [];
+  }
+
+  async function ensureCatalogoModulos() {
+    if (catalogoModulos.length) return;
+    var r0 = await fetch(apiPrefix() + '/api/saas/modulos-catalogo', { headers: getAuthJsonHeaders() });
+    var d0 = await r0.json();
+    catalogoModulos = d0.modulos || [];
+  }
+
+  function renderPlanoModulosChecks(incluidos) {
+    var grid = document.getElementById('planoModulosGrid');
+    if (!grid) return;
+    incluidos = incluidos || {};
+    if (!catalogoModulos.length) {
+      grid.innerHTML = '<p class="saas-op-info">Nenhum módulo no catálogo.</p>';
+      return;
+    }
     grid.innerHTML = catalogoModulos
       .map(function (m) {
         var cod = m.CODIGO || m.codigo;
@@ -437,200 +538,312 @@
       .join('');
   }
 
-  var btnSavePlanoAssentos = document.getElementById('btnSavePlanoAssentos');
-  if (btnSavePlanoAssentos) {
-    btnSavePlanoAssentos.addEventListener('click', async function () {
-      var sel = document.getElementById('selPlano');
-      var cd = sel && sel.value;
-      if (!cd) {
-        showMsg('msgPlano', 'Selecione um plano.', false);
-        return;
-      }
-      var inp = document.getElementById('planoMaxAssentos');
-      var raw = inp ? String(inp.value).trim() : '';
-      showMsg('msgPlano', 'Salvando…', true);
-      try {
-        var body = {};
-        if (raw === '') body.max_assentos_usuarios = null;
-        else {
-          var n = parseInt(raw, 10);
-          if (!Number.isFinite(n)) {
-            showMsg('msgPlano', 'Informe um número válido ou deixe vazio para ilimitado.', false);
-            return;
-          }
-          body.max_assentos_usuarios = n;
-        }
-        var r = await fetch(apiPrefix() + '/api/saas/planos/' + encodeURIComponent(cd), {
-          method: 'PUT',
-          headers: getAuthJsonHeaders(),
-          body: JSON.stringify(body),
-        });
-        var data = await r.json();
-        if (!r.ok) throw new Error(data.error || 'Erro');
-        showMsg('msgPlano', 'Limite do plano salvo.', true);
-        if (data.plano) {
-          var pr = data.plano;
-          var cdKey = pr.CD_PLANO != null ? pr.CD_PLANO : pr.cd_plano;
-          planosList = planosList.map(function (p) {
-            var c = p.CD_PLANO != null ? p.CD_PLANO : p.cd_plano;
-            if (String(c) !== String(cdKey)) return p;
-            return Object.assign({}, p, pr);
-          });
-          syncPlanoAssentosField(cd);
-        } else {
-          await loadPlanosPanel();
-        }
-        var tabCli = document.getElementById('tab-clientes');
-        if (tabCli && tabCli.classList.contains('active')) await loadClientesPanel();
-      } catch (e) {
-        showMsg('msgPlano', e.message || 'Erro', false);
-      }
-    });
-  }
-
-  var btnSavePlanoSessoes = document.getElementById('btnSavePlanoSessoes');
-  if (btnSavePlanoSessoes) {
-    btnSavePlanoSessoes.addEventListener('click', async function () {
-      var sel = document.getElementById('selPlano');
-      var cd = sel && sel.value;
-      if (!cd) {
-        showMsg('msgPlano', 'Selecione um plano.', false);
-        return;
-      }
-      var inp = document.getElementById('planoMaxSessoes');
-      var raw = inp ? String(inp.value).trim() : '';
-      showMsg('msgPlano', 'Salvando…', true);
-      try {
-        var bodyS = {};
-        if (raw === '') bodyS.max_sessoes_simultaneas = null;
-        else {
-          var ns = parseInt(raw, 10);
-          if (!Number.isFinite(ns)) {
-            showMsg('msgPlano', 'Informe um número válido ou deixe vazio para ilimitado.', false);
-            return;
-          }
-          bodyS.max_sessoes_simultaneas = ns;
-        }
-        var r2 = await fetch(apiPrefix() + '/api/saas/planos/' + encodeURIComponent(cd), {
-          method: 'PUT',
-          headers: getAuthJsonHeaders(),
-          body: JSON.stringify(bodyS),
-        });
-        var data2 = await r2.json();
-        if (!r2.ok) throw new Error(data2.error || 'Erro');
-        showMsg('msgPlano', 'Limite de sessões salvo.', true);
-        if (data2.plano) {
-          var pr2 = data2.plano;
-          var cdKey2 = pr2.CD_PLANO != null ? pr2.CD_PLANO : pr2.cd_plano;
-          planosList = planosList.map(function (p) {
-            var cx = p.CD_PLANO != null ? p.CD_PLANO : p.cd_plano;
-            if (String(cx) !== String(cdKey2)) return p;
-            return Object.assign({}, p, pr2);
-          });
-          syncPlanoSessoesField(cd);
-        } else {
-          await loadPlanosPanel();
-        }
-        var tabCli2 = document.getElementById('tab-clientes');
-        if (tabCli2 && tabCli2.classList.contains('active')) await loadClientesPanel();
-      } catch (e) {
-        showMsg('msgPlano', e.message || 'Erro', false);
-      }
-    });
-  }
-
-  document.getElementById('btnSavePlanoMods').addEventListener('click', async function () {
-    var sel = document.getElementById('selPlano');
-    var cd = sel && sel.value;
-    if (!cd) return;
+  function codigosModulosMarcados() {
     var codigos = [];
     document.querySelectorAll('#planoModulosGrid input[data-plano-mod]').forEach(function (inp) {
       if (inp.checked) codigos.push(inp.getAttribute('data-plano-mod'));
     });
-    showMsg('msgPlano', 'Salvando…', true);
+    return codigos;
+  }
+
+  function parseLimiteCampo(raw, label) {
+    var t = raw == null ? '' : String(raw).trim();
+    if (t === '') return { value: null };
+    var n = parseInt(t, 10);
+    if (!Number.isFinite(n) || n < 1) {
+      return { error: 'Informe um número válido em ' + label + ' ou deixe vazio para ilimitado.' };
+    }
+    return { value: n };
+  }
+
+  function normalizePlanoRow(p) {
+    var cd = String(p.CD_PLANO != null ? p.CD_PLANO : p.cd_plano);
+    var maxA = p.MAX_ASSENTOS_USUARIOS != null ? p.MAX_ASSENTOS_USUARIOS : p.max_assentos_usuarios;
+    var maxS = p.MAX_SESSOES_SIMULTANEAS != null ? p.MAX_SESSOES_SIMULTANEAS : p.max_sessoes_simultaneas;
+    var mods = planosModulosResumo[cd] || [];
+    return {
+      CD_PLANO: cd,
+      NM_PLANO: p.NM_PLANO || p.nm_plano || cd,
+      DS_PLANO: p.DS_PLANO || p.ds_plano || '',
+      MAX_ASSENTOS_LABEL: maxA != null && maxA !== '' ? String(maxA) : '∞',
+      MAX_SESSOES_LABEL: maxS != null && maxS !== '' ? String(maxS) : '∞',
+      MODULOS_TXT: mods.length ? mods.join(', ') : '—',
+      _raw: p,
+    };
+  }
+
+  function initGridPlanos() {
+    if (gridPlanos || typeof window.GridEditor === 'undefined') return gridPlanos;
+    gridPlanos = new window.GridEditor({
+      container: '#planosGrid',
+      columns: [
+        { field: 'CD_PLANO', header: 'ID', editable: false, isId: true, hidden: true },
+        { field: 'NM_PLANO', header: 'Nome', editable: false },
+        { field: 'DS_PLANO', header: 'Descrição', editable: false },
+        { field: 'MAX_ASSENTOS_LABEL', header: 'Assentos', editable: false, width: '100px', align: 'right' },
+        { field: 'MAX_SESSOES_LABEL', header: 'Sessões', editable: false, width: '100px', align: 'right' },
+        { field: 'MODULOS_TXT', header: 'Módulos', editable: false },
+      ],
+      canDeleteRow: function () {
+        return false;
+      },
+      onBeforeEdit: function (id) {
+        var p = planosPorId[String(id)];
+        if (p) abrirEdicaoPlano(p);
+        return false;
+      },
+      onDelete: function () {},
+    });
+    // Evita traço "—" do placeholder de exclusão em GridEditor antigo em cache
+    if (gridPlanos && typeof gridPlanos.renderActions === 'function') {
+      var _raPlano = gridPlanos.renderActions.bind(gridPlanos);
+      gridPlanos.renderActions = function (row, isEditing) {
+        return String(_raPlano(row, isEditing) || '').replace(
+          /<span class="grid-no-delete"[^>]*>\s*—\s*<\/span>/g,
+          ''
+        );
+      };
+    }
+    return gridPlanos;
+  }
+
+  function renderPlanosTable() {
+    planosPorId = {};
+    var rows = (planosList || []).map(function (p) {
+      var cd = String(p.CD_PLANO != null ? p.CD_PLANO : p.cd_plano);
+      planosPorId[cd] = p;
+      return normalizePlanoRow(p);
+    });
+    setGridCount('planosGridCountText', rows.length);
+    var wrap = document.getElementById('planosGrid');
+    if (!wrap) return;
+    if (!rows.length) {
+      wrap.innerHTML = '<p class="empty">Nenhum plano. Use Novo para cadastrar.</p>';
+      return;
+    }
+    if (typeof window.GridEditor === 'undefined') {
+      wrap.innerHTML = '<p class="empty">GridEditor não carregou. Atualize a página.</p>';
+      return;
+    }
+    initGridPlanos();
+    gridPlanos.render(rows);
+  }
+
+  async function loadPlanosPanel() {
+    showOverlay();
     try {
-      var r = await fetch(apiPrefix() + '/api/saas/planos/' + encodeURIComponent(cd) + '/modulos', {
+      var r = await fetch(apiPrefix() + '/api/saas/planos', { headers: getAuthJsonHeaders() });
+      var data = await r.json();
+      if (!r.ok) throw new Error(data.error || 'Erro');
+      planosList = data.planos || [];
+      syncSelectPlanosCliente();
+      planosModulosResumo = {};
+      await Promise.all(
+        planosList.map(function (p) {
+          var cd = String(p.CD_PLANO != null ? p.CD_PLANO : p.cd_plano);
+          return fetchModulosDoPlano(cd)
+            .then(function (mods) {
+              planosModulosResumo[cd] = mods.map(function (row) {
+                return row.NM_EXIBICAO || row.nm_exibicao || row.CODIGO_MODULO || row.codigo_modulo;
+              });
+            })
+            .catch(function () {
+              planosModulosResumo[cd] = [];
+            });
+        })
+      );
+      renderPlanosTable();
+    } catch (e) {
+      setGridCount('planosGridCountText', 0);
+      var wrapPl = document.getElementById('planosGrid');
+      if (wrapPl) wrapPl.innerHTML = '<p class="empty">' + escapeHtml(e.message || 'Erro') + '</p>';
+      toastMsg(e.message || 'Erro', 'error');
+    } finally {
+      hideOverlay();
+    }
+  }
+
+  function fecharPlanoModal() {
+    var modal = document.getElementById('saasPlanoModal');
+    if (modal) {
+      modal.classList.remove('is-open');
+      modal.style.display = 'none';
+    }
+  }
+
+  function abrirPlanoModal() {
+    var modal = document.getElementById('saasPlanoModal');
+    if (!modal) return;
+    modal.style.display = 'flex';
+    modal.classList.add('is-open');
+  }
+
+  function limparFormularioPlano() {
+    editandoPlano = null;
+    setCampo('planoModalNm', '');
+    setCampo('planoModalDs', '');
+    setCampo('planoMaxAssentos', '');
+    setCampo('planoMaxSessoes', '');
+    var titulo = document.getElementById('saasPlanoModalTitulo');
+    if (titulo) titulo.innerHTML = '<i class="bx bx-plus-circle"></i> Novo plano';
+    showMsg('msgPlanoModal', '', true);
+  }
+
+  async function abrirNovoPlano() {
+    limparFormularioPlano();
+    await ensureCatalogoModulos();
+    renderPlanoModulosChecks({});
+    abrirPlanoModal();
+    var foc = document.getElementById('planoModalNm');
+    if (foc) foc.focus();
+  }
+
+  async function abrirEdicaoPlano(p) {
+    if (!p) return;
+    limparFormularioPlano();
+    editandoPlano = String(p.CD_PLANO != null ? p.CD_PLANO : p.cd_plano);
+    setCampo('planoModalNm', p.NM_PLANO || p.nm_plano || '');
+    setCampo('planoModalDs', p.DS_PLANO || p.ds_plano || '');
+    var maxA = p.MAX_ASSENTOS_USUARIOS != null ? p.MAX_ASSENTOS_USUARIOS : p.max_assentos_usuarios;
+    var maxS = p.MAX_SESSOES_SIMULTANEAS != null ? p.MAX_SESSOES_SIMULTANEAS : p.max_sessoes_simultaneas;
+    setCampo('planoMaxAssentos', maxA != null && maxA !== '' ? maxA : '');
+    setCampo('planoMaxSessoes', maxS != null && maxS !== '' ? maxS : '');
+    var titulo = document.getElementById('saasPlanoModalTitulo');
+    if (titulo) titulo.innerHTML = '<i class="bx bx-edit"></i> Editar plano';
+    showMsg('msgPlanoModal', 'Carregando módulos…', true);
+    abrirPlanoModal();
+    try {
+      await ensureCatalogoModulos();
+      var mods = await fetchModulosDoPlano(editandoPlano);
+      var incluidos = {};
+      mods.forEach(function (row) {
+        var c = row.CODIGO_MODULO || row.codigo_modulo;
+        if (c) incluidos[String(c)] = true;
+      });
+      renderPlanoModulosChecks(incluidos);
+      showMsg('msgPlanoModal', '', true);
+    } catch (e) {
+      renderPlanoModulosChecks({});
+      showMsg('msgPlanoModal', e.message || 'Erro ao carregar módulos.', false);
+    }
+    var foc = document.getElementById('planoModalNm');
+    if (foc) foc.focus();
+  }
+
+  async function salvarPlanoDoModal() {
+    if (salvandoPlano) return;
+    var nm = valorCampo('planoModalNm');
+    var ds = valorCampo('planoModalDs');
+    if (!nm) {
+      showMsg('msgPlanoModal', 'Informe o nome do plano.', false);
+      return;
+    }
+    var limA = parseLimiteCampo(valorCampo('planoMaxAssentos'), 'assentos');
+    if (limA.error) {
+      showMsg('msgPlanoModal', limA.error, false);
+      return;
+    }
+    var limS = parseLimiteCampo(valorCampo('planoMaxSessoes'), 'sessões');
+    if (limS.error) {
+      showMsg('msgPlanoModal', limS.error, false);
+      return;
+    }
+    var codigos = codigosModulosMarcados();
+    var eraEdicao = !!editandoPlano;
+    salvandoPlano = true;
+    showMsg('msgPlanoModal', 'Salvando…', true);
+    try {
+      var cd = editandoPlano;
+      if (cd) {
+        var rPut = await fetch(apiPrefix() + '/api/saas/planos/' + encodeURIComponent(cd), {
+          method: 'PUT',
+          headers: getAuthJsonHeaders(),
+          body: JSON.stringify({
+            nm_plano: nm,
+            ds_plano: ds,
+            max_assentos_usuarios: limA.value,
+            max_sessoes_simultaneas: limS.value,
+          }),
+        });
+        var dPut = await rPut.json();
+        if (!rPut.ok) throw new Error(dPut.error || 'Erro ao atualizar plano.');
+      } else {
+        var rPost = await fetch(apiPrefix() + '/api/saas/planos', {
+          method: 'POST',
+          headers: getAuthJsonHeaders(),
+          body: JSON.stringify({
+            nm_plano: nm,
+            ds_plano: ds,
+            max_assentos_usuarios: limA.value,
+            max_sessoes_simultaneas: limS.value,
+          }),
+        });
+        var dPost = await rPost.json();
+        if (!rPost.ok) throw new Error(dPost.error || 'Erro ao criar plano.');
+        cd = String(
+          (dPost.plano && (dPost.plano.CD_PLANO != null ? dPost.plano.CD_PLANO : dPost.plano.cd_plano)) ||
+            ''
+        );
+        if (!cd) throw new Error('Plano criado sem identificador.');
+      }
+      var rMod = await fetch(apiPrefix() + '/api/saas/planos/' + encodeURIComponent(cd) + '/modulos', {
         method: 'PUT',
         headers: getAuthJsonHeaders(),
         body: JSON.stringify({ codigos: codigos }),
       });
-      var data = await r.json();
-      if (!r.ok) throw new Error(data.error || 'Erro');
-      showMsg('msgPlano', 'Plano atualizado.', true);
-    } catch (e) {
-      showMsg('msgPlano', e.message || 'Erro', false);
-    }
-  });
-
-  document.getElementById('btnLimparComposicaoPlano').addEventListener('click', function () {
-    var sel = document.getElementById('selPlano');
-    var cd = sel && sel.value;
-    if (!cd) {
-      showMsg('msgPlano', 'Selecione um plano.', false);
-      return;
-    }
-    var nmPlano = '';
-    planosList.forEach(function (p) {
-      var c = p.CD_PLANO != null ? p.CD_PLANO : p.cd_plano;
-      if (String(c) === String(cd)) nmPlano = p.NM_PLANO || p.nm_plano || String(cd);
-    });
-    saasConfirmModal({
-      title: 'Limpar composição do plano',
-      html:
-        '<p>Remover <strong>todos</strong> os módulos do plano <strong>' +
-        escapeHtml(nmPlano) +
-        '</strong> (<code>' +
-        escapeHtml(String(cd)) +
-        '</code>)?</p><p style="margin-top:12px;">Nenhum módulo ficará associado a este plano até você marcar de novo e usar <strong>Salvar plano</strong>. Clientes já vinculados ao plano deixam de herdar módulos por ele.</p>',
-      plainFallback: 'Limpar todos os módulos deste plano?',
-      confirmHtml: '<i class="bx bx-eraser"></i> Limpar composição',
-      confirmClass: 'btn-filtro btn-filtro-danger',
-    }).then(function (ok) {
-      if (!ok) return;
-      showOverlay();
-      showMsg('msgPlano', 'Removendo…', true);
-      fetch(apiPrefix() + '/api/saas/planos/' + encodeURIComponent(cd) + '/modulos', {
-        method: 'DELETE',
-        headers: getAuthJsonHeaders(),
-      })
-        .then(function (r) {
-          return r.json().then(function (data) {
-            return { r: r, data: data };
-          });
-        })
-        .then(function (x) {
-          if (!x.r.ok) throw new Error((x.data && x.data.error) || 'Erro');
-          showMsg('msgPlano', 'Composição removida.', true);
-          return loadPlanoModulos(cd);
-        })
-        .catch(function (e) {
-          showMsg('msgPlano', e.message || 'Erro', false);
-        })
-        .finally(function () {
-          hideOverlay();
-        });
-    });
-  });
-
-  document.getElementById('btnAddPlano').addEventListener('click', async function () {
-    var nm = (document.getElementById('newPlanoNm') && document.getElementById('newPlanoNm').value) || '';
-    var ds = (document.getElementById('newPlanoDs') && document.getElementById('newPlanoDs').value) || '';
-    showMsg('msgPlanoNovo', 'Criando…', true);
-    try {
-      var r = await fetch(apiPrefix() + '/api/saas/planos', {
-        method: 'POST',
-        headers: getAuthJsonHeaders(),
-        body: JSON.stringify({ nm_plano: nm.trim(), ds_plano: ds.trim() }),
-      });
-      var data = await r.json();
-      if (!r.ok) throw new Error(data.error || 'Erro');
-      showMsg('msgPlanoNovo', 'Plano criado.', true);
-      if (document.getElementById('newPlanoNm')) document.getElementById('newPlanoNm').value = '';
+      var dMod = await rMod.json();
+      if (!rMod.ok) throw new Error(dMod.error || 'Erro ao salvar módulos do plano.');
+      fecharPlanoModal();
+      toastMsg(eraEdicao ? 'Plano atualizado.' : 'Plano cadastrado.', 'success');
       await loadPlanosPanel();
+      var tabCli = document.getElementById('tab-clientes');
+      if (tabCli && tabCli.classList.contains('active')) await loadClientesPanel();
     } catch (e) {
-      showMsg('msgPlanoNovo', e.message || 'Erro', false);
+      showMsg('msgPlanoModal', e.message || 'Erro', false);
+    } finally {
+      salvandoPlano = false;
     }
-  });
+  }
+
+  var btnNovoPlano = document.getElementById('btnNovoPlano');
+  if (btnNovoPlano) {
+    btnNovoPlano.addEventListener('click', function () {
+      abrirNovoPlano();
+    });
+  }
+  var btnSalvarPlano = document.getElementById('btnSalvarPlano');
+  if (btnSalvarPlano) {
+    btnSalvarPlano.addEventListener('click', function () {
+      salvarPlanoDoModal();
+    });
+  }
+  var btnCancelPlano = document.getElementById('btnCancelPlano');
+  if (btnCancelPlano) {
+    btnCancelPlano.addEventListener('click', function () {
+      fecharPlanoModal();
+    });
+  }
+  var saasPlanoModalX = document.getElementById('saasPlanoModalX');
+  if (saasPlanoModalX) {
+    saasPlanoModalX.addEventListener('click', function () {
+      fecharPlanoModal();
+    });
+  }
+  var saasPlanoModal = document.getElementById('saasPlanoModal');
+  if (saasPlanoModal) {
+    saasPlanoModal.addEventListener('click', function (ev) {
+      if (ev.target === saasPlanoModal) fecharPlanoModal();
+    });
+  }
+  var btnLimparComposicaoPlano = document.getElementById('btnLimparComposicaoPlano');
+  if (btnLimparComposicaoPlano) {
+    btnLimparComposicaoPlano.addEventListener('click', function () {
+      document.querySelectorAll('#planoModulosGrid input[data-plano-mod]').forEach(function (inp) {
+        inp.checked = false;
+      });
+      showMsg('msgPlanoModal', 'Módulos desmarcados. Use Salvar para gravar.', true);
+    });
+  }
 
   function valorCampo(id) {
     var el = document.getElementById(id);
@@ -642,6 +855,21 @@
     if (el) el.value = v == null ? '' : String(v);
   }
 
+  function fecharClienteModal() {
+    var modal = document.getElementById('saasClienteModal');
+    if (modal) {
+      modal.classList.remove('is-open');
+      modal.style.display = 'none';
+    }
+  }
+
+  function abrirClienteModal() {
+    var modal = document.getElementById('saasClienteModal');
+    if (!modal) return;
+    modal.style.display = 'flex';
+    modal.classList.add('is-open');
+  }
+
   function limparFormularioCliente() {
     editandoTenant = null;
     ['newTenantId', 'newClienteNm', 'newClienteDoc', 'newClienteContato', 'newClienteEmail', 'newClienteDdi', 'newClienteFone', 'newClienteEmp', 'newClienteMaxAssentos', 'newClienteMaxSessoes'].forEach(function (id) {
@@ -649,18 +877,30 @@
     });
     var tid = document.getElementById('newTenantId');
     if (tid) tid.readOnly = false;
-    var titulo = document.getElementById('clienteFormTitulo');
+    var titulo = document.getElementById('saasClienteModalTitulo');
     if (titulo) titulo.innerHTML = '<i class="bx bx-user-plus"></i> Novo cliente';
     var btn = document.getElementById('btnAddCliente');
-    if (btn) btn.innerHTML = '<i class="bx bx-plus"></i> <span>Cadastrar cliente</span>';
-    var cancel = document.getElementById('btnCancelCliente');
-    if (cancel) cancel.hidden = true;
+    if (btn) btn.innerHTML = '<i class="bx bx-save"></i> <span>Salvar</span>';
     var pais = document.getElementById('newClientePais');
     if (pais && pais.querySelector('option[value="BR"]')) pais.value = 'BR';
+    setCampo('newClienteDdi', '55');
+    showMsg('msgClienteNovo', '', true);
+  }
+
+  function abrirNovoCliente() {
+    limparFormularioCliente();
+    carregarPaisesCliente().then(function () {
+      var pais = document.getElementById('newClientePais');
+      if (pais && pais.querySelector('option[value="BR"]')) pais.value = 'BR';
+      abrirClienteModal();
+      var foc = document.getElementById('newTenantId');
+      if (foc) foc.focus();
+    });
   }
 
   function abrirEdicaoCliente(c) {
     if (!c) return;
+    limparFormularioCliente();
     editandoTenant = String(c.TENANT_ID || c.tenant_id || '');
     setCampo('newTenantId', editandoTenant);
     var tid = document.getElementById('newTenantId');
@@ -679,13 +919,14 @@
     var ovrS = c.max_sessoes_simultaneas_ovr != null ? c.max_sessoes_simultaneas_ovr : c.MAX_SESSOES_SIMULTANEAS_OVR;
     setCampo('newClienteMaxAssentos', ovr != null ? ovr : '');
     setCampo('newClienteMaxSessoes', ovrS != null ? ovrS : '');
-    var titulo = document.getElementById('clienteFormTitulo');
-    if (titulo) titulo.innerHTML = '<i class="bx bx-edit"></i> Editar cadastro';
-    var btn = document.getElementById('btnAddCliente');
-    if (btn) btn.innerHTML = '<i class="bx bx-save"></i> <span>Salvar cadastro</span>';
-    var cancel = document.getElementById('btnCancelCliente');
-    if (cancel) cancel.hidden = false;
-    if (titulo && titulo.scrollIntoView) titulo.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    var titulo = document.getElementById('saasClienteModalTitulo');
+    if (titulo) titulo.innerHTML = '<i class="bx bx-edit"></i> Editar cliente';
+    carregarPaisesCliente().then(function () {
+      setCampo('newClientePais', c.SGPAIS || c.sgpais || 'BR');
+      abrirClienteModal();
+      var foc = document.getElementById('newClienteNm');
+      if (foc) foc.focus();
+    });
   }
 
   function payloadDoFormulario() {
@@ -744,6 +985,89 @@
     if (selP.querySelector('option[value="BR"]')) selP.value = 'BR';
   }
 
+  function initGridClientes() {
+    if (gridClientes || typeof window.GridEditor === 'undefined') return gridClientes;
+    gridClientes = new window.GridEditor({
+      container: '#clientesGrid',
+      columns: [
+        { field: 'TENANT_ID', header: 'Tenant', editable: false, isId: true, width: '140px' },
+        { field: 'NM_CLIENTE', header: 'Empresa', editable: false },
+        { field: 'CONTATO', header: 'Contato', editable: false },
+        { field: 'CELULAR', header: 'Celular', editable: false, width: '160px' },
+        { field: 'PLANO', header: 'Plano', editable: false, width: '120px' },
+        { field: 'ASSENTOS', header: 'Assentos', editable: false, width: '110px', align: 'right' },
+        { field: 'SESSOES', header: 'Sessões', editable: false, width: '110px', align: 'right' },
+      ],
+      canDeleteRow: function (row) {
+        return String(row.TENANT_ID) !== 'default';
+      },
+      onBeforeEdit: function (id) {
+        abrirEdicaoCliente(clientesPorId[String(id)]);
+        return false;
+      },
+      onDelete: function (id) {
+        var tid = String(id);
+        if (!tid || tid === 'default') return;
+        var c = clientesPorId[tid] || {};
+        var nm = c.NM_CLIENTE || c.nm_cliente || tid;
+        saasConfirmModal({
+          title: 'Excluir cliente contratante',
+          html:
+            '<p>Remover o cliente <strong>' +
+            escapeHtml(nm) +
+            '</strong> (<code>' +
+            escapeHtml(tid) +
+            '</code>)?</p><ul style="text-align:left;margin:12px 0;padding-left:1.25rem;line-height:1.5;"><li>Some este identificador por completo: cliente, pedido de acesso, usuários, cadastros, configuração, torre e estoque.</li><li>Cidades, estados e a instalação padrão ficam.</li></ul>',
+          plainFallback: 'Excluir cliente contratante ' + tid + '?',
+          confirmHtml: '<i class="bx bx-trash"></i> Excluir',
+          confirmClass: 'btn-filtro btn-filtro-danger',
+        }).then(function (ok) {
+          if (ok) deleteClienteRow(tid);
+        });
+      },
+    });
+    return gridClientes;
+  }
+
+  function normalizeClienteRow(c) {
+    var tid = String(c.TENANT_ID || c.tenant_id || '');
+    var nomeCheio = c.NM_CLIENTE || c.nm_cliente || tid;
+    var cdp = c.CD_PLANO != null ? c.CD_PLANO : c.cd_plano;
+    var qtd = c.qtd_usuarios_ativos != null ? c.qtd_usuarios_ativos : c.QTD_USUARIOS_ATIVOS;
+    var ovr = c.max_assentos_usuarios_ovr != null ? c.max_assentos_usuarios_ovr : c.MAX_ASSENTOS_USUARIOS_OVR;
+    var mpl = c.max_assentos_plano != null ? c.max_assentos_plano : c.MAX_ASSENTOS_USUARIOS_PLANO;
+    var eff = ovr != null && ovr !== '' ? ovr : mpl;
+    var limTxt = eff != null && eff !== '' ? String(eff) : '∞';
+    var uso = qtd != null && qtd !== '' ? String(qtd) : '—';
+    var qtdS = c.qtd_sessoes_torre_abertas != null ? c.qtd_sessoes_torre_abertas : c.QTD_SESSOES_TORRE_ABERTAS;
+    var ovrS = c.max_sessoes_simultaneas_ovr != null ? c.max_sessoes_simultaneas_ovr : c.MAX_SESSOES_SIMULTANEAS_OVR;
+    var mplS = c.max_sessoes_plano != null ? c.max_sessoes_plano : c.MAX_SESSOES_SIMULTANEAS_PLANO;
+    var effS = ovrS != null && ovrS !== '' ? ovrS : mplS;
+    var limTxtS = effS != null && effS !== '' ? String(effS) : '∞';
+    var usoS = qtdS != null && qtdS !== '' ? String(qtdS) : '—';
+    var planoNome = c.nm_plano || c.NM_PLANO || '';
+    if (!planoNome) {
+      planosList.forEach(function (p) {
+        var cd = p.CD_PLANO != null ? p.CD_PLANO : p.cd_plano;
+        if (String(cd) === String(cdp)) planoNome = p.NM_PLANO || p.nm_plano || '';
+      });
+    }
+    var contato = c.NM_CONTATO || c.nm_contato || '';
+    var ddi = c.DDI || c.ddi || '';
+    var fone = c.TELEFONE || c.telefone || '';
+    var foneTxt = fone ? (ddi ? '+' + ddi + ' ' : '') + fone : '';
+    return {
+      TENANT_ID: tid,
+      NM_CLIENTE: nomeCheio,
+      CONTATO: contato || '—',
+      CELULAR: foneTxt || '—',
+      PLANO: planoNome || '—',
+      ASSENTOS: uso + ' / ' + limTxt,
+      SESSOES: usoS + ' / ' + limTxtS,
+      _raw: c,
+    };
+  }
+
   async function loadClientesPanel() {
     showOverlay();
     try {
@@ -755,134 +1079,38 @@
       var rp = await fetch(apiPrefix() + '/api/saas/planos', { headers: getAuthJsonHeaders() });
       var dp = await rp.json();
       planosList = dp.planos || [];
-      var wrap = document.getElementById('tableClientesWrap');
-      var selN = document.getElementById('newClientePlano');
-      if (selN) {
-        selN.innerHTML = '';
-        planosList.forEach(function (p) {
-          var cd = p.CD_PLANO != null ? p.CD_PLANO : p.cd_plano;
-          var nm = p.NM_PLANO || p.nm_plano;
-          var o = document.createElement('option');
-          o.value = String(cd);
-          o.textContent = nm;
-          selN.appendChild(o);
-        });
-      }
-      if (!clientes.length) {
-        wrap.innerHTML = '<p class="saas-op-info">Nenhum cliente. Cadastre acima ou rode o script SQL.</p>';
-        hideOverlay();
+      syncSelectPlanosCliente();
+      clientesPorId = {};
+      var rows = clientes.map(function (c) {
+        var row = normalizeClienteRow(c);
+        clientesPorId[row.TENANT_ID] = c;
+        return row;
+      });
+      setGridCount('clientesGridCountText', rows.length);
+      var wrap = document.getElementById('clientesGrid');
+      if (!wrap) return;
+      if (!rows.length) {
+        wrap.innerHTML = '<p class="empty">Nenhum cliente. Use Novo ou rode o script SQL.</p>';
         return;
       }
-      clientesPorId = {};
-      var html = '<div class="cliente-lista">';
-      clientes.forEach(function (c) {
-        var tid = String(c.TENANT_ID || c.tenant_id || '');
-        clientesPorId[tid] = c;
-        var nomeCheio = c.NM_CLIENTE || c.nm_cliente || tid;
-        var cdp = c.CD_PLANO != null ? c.CD_PLANO : c.cd_plano;
-        var emp = c.CDEMPRESA != null ? c.CDEMPRESA : c.cdempresa;
-        var qtd = c.qtd_usuarios_ativos != null ? c.qtd_usuarios_ativos : c.QTD_USUARIOS_ATIVOS;
-        var ovr = c.max_assentos_usuarios_ovr != null ? c.max_assentos_usuarios_ovr : c.MAX_ASSENTOS_USUARIOS_OVR;
-        var mpl = c.max_assentos_plano != null ? c.max_assentos_plano : c.MAX_ASSENTOS_USUARIOS_PLANO;
-        var eff = ovr != null && ovr !== '' ? ovr : mpl;
-        var limTxt = eff != null && eff !== '' ? String(eff) : '∞';
-        var uso = qtd != null && qtd !== '' ? String(qtd) : '—';
-        var usoClass = '';
-        if (eff != null && eff !== '' && qtd != null && Number(qtd) > Number(eff)) usoClass = ' style="color:#b45309;font-weight:600;" title="Acima do limite (usuários já ativos)"';
-        var qtdS =
-          c.qtd_sessoes_torre_abertas != null ? c.qtd_sessoes_torre_abertas : c.QTD_SESSOES_TORRE_ABERTAS;
-        var ovrS =
-          c.max_sessoes_simultaneas_ovr != null ? c.max_sessoes_simultaneas_ovr : c.MAX_SESSOES_SIMULTANEAS_OVR;
-        var mplS = c.max_sessoes_plano != null ? c.max_sessoes_plano : c.MAX_SESSOES_SIMULTANEAS_PLANO;
-        var effS = ovrS != null && ovrS !== '' ? ovrS : mplS;
-        var limTxtS = effS != null && effS !== '' ? String(effS) : '∞';
-        var usoS = qtdS != null && qtdS !== '' ? String(qtdS) : '—';
-        var usoClassS = '';
-        if (effS != null && effS !== '' && qtdS != null && Number(qtdS) > Number(effS)) {
-          usoClassS =
-            ' style="color:#b45309;font-weight:600;" title="Acima do limite de sessões (faça logout em outro acesso ou aguarde TTL)"';
-        }
-        var planoNome = c.nm_plano || c.NM_PLANO || '';
-        if (!planoNome) {
-          planosList.forEach(function (p) {
-            var cd = p.CD_PLANO != null ? p.CD_PLANO : p.cd_plano;
-            if (String(cd) === String(cdp)) planoNome = p.NM_PLANO || p.nm_plano || '';
-          });
-        }
-        var doc = c.DOCUMENTO || c.documento || '';
-        var contato = c.NM_CONTATO || c.nm_contato || '';
-        var email = c.EMAIL || c.email || '';
-        var ddi = c.DDI || c.ddi || '';
-        var fone = c.TELEFONE || c.telefone || '';
-        var foneTxt = fone ? (ddi ? '+' + ddi + ' ' : '') + fone : '';
-        var login = c.SGUSUARIO || c.sgusuario || '';
-        function item(rotulo, valor, extra) {
-          return '<div><dt>' + rotulo + '</dt><dd' + (extra || '') + '>' + escapeHtml(valor || '—') + '</dd></div>';
-        }
-        html += '<article class="cliente-card" data-tenant="' + escapeHtml(tid) + '">';
-        html += '<div class="cliente-card-topo"><div><strong>' + escapeHtml(nomeCheio) + '</strong><code>' + escapeHtml(tid) + '</code></div>';
-        html += '<div class="cliente-card-acoes">';
-        html += '<button type="button" class="btn-filtro btn-filtro-aplicar btn-cli-edit"><i class="bx bx-edit"></i> Editar</button>';
-        if (tid === 'default') {
-          html += '<span class="saas-op-info" title="Tenant base da instalação">Base</span>';
-        } else {
-          html += '<button type="button" class="btn-filtro saas-btn-excluir btn-cli-del" title="Remover cliente contratante"><i class="bx bx-trash"></i> Excluir</button>';
-        }
-        html += '</div></div><dl class="cliente-dados">';
-        html += item('Documento', doc);
-        html += item('Contato', contato);
-        html += item('E-mail', email);
-        html += item('Celular', foneTxt);
-        html += item('Usuário de acesso', login);
-        html += item('Plano', planoNome);
-        html += item('Assentos', uso + ' / ' + limTxt, usoClass);
-        html += item('Sessões da torre', usoS + ' / ' + limTxtS, usoClassS);
-        html += item('CD empresa', emp != null && emp !== '' ? String(emp) : '');
-        html += '</dl></article>';
-      });
-      html += '</div>';
-      wrap.innerHTML = html;
-      wrap.querySelectorAll('.btn-cli-edit').forEach(function (btn) {
-        btn.addEventListener('click', function () {
-          var card = btn.closest('.cliente-card');
-          if (!card) return;
-          abrirEdicaoCliente(clientesPorId[card.getAttribute('data-tenant')]);
-        });
-      });
-      wrap.querySelectorAll('.btn-cli-del').forEach(function (btn) {
-        btn.addEventListener('click', function () {
-          var card = btn.closest('.cliente-card');
-          if (!card) return;
-          var tenant = card.getAttribute('data-tenant');
-          if (!tenant || tenant === 'default') return;
-          var nomeEl = card.querySelector('strong');
-          var nm = (nomeEl && nomeEl.textContent) || tenant;
-          saasConfirmModal({
-            title: 'Excluir cliente contratante',
-            html:
-              '<p>Remover o cliente <strong>' +
-              escapeHtml(nm) +
-              '</strong> (<code>' +
-              escapeHtml(tenant) +
-              '</code>)?</p><ul style="text-align:left;margin:12px 0;padding-left:1.25rem;line-height:1.5;"><li>Some este identificador por completo: cliente, pedido de acesso, usuários, cadastros, configuração, torre e estoque.</li><li>Cidades, estados e a instalação padrão ficam.</li></ul>',
-            plainFallback: 'Excluir cliente contratante ' + tenant + '?',
-            confirmHtml: '<i class="bx bx-trash"></i> Excluir',
-            confirmClass: 'btn-filtro btn-filtro-danger',
-          }).then(function (ok) {
-            if (ok) deleteClienteRow(tenant);
-          });
-        });
-      });
+      if (typeof window.GridEditor === 'undefined') {
+        wrap.innerHTML = '<p class="empty">GridEditor não carregou. Atualize a página.</p>';
+        return;
+      }
+      initGridClientes();
+      gridClientes.render(rows);
     } catch (e) {
-      document.getElementById('tableClientesWrap').innerHTML =
-        '<p class="saas-msg err">' + (e.message || 'Erro') + '</p>';
+      setGridCount('clientesGridCountText', 0);
+      var g = document.getElementById('clientesGrid');
+      if (g) g.innerHTML = '<p class="empty">' + escapeHtml(e.message || 'Erro') + '</p>';
+      toastMsg(e.message || 'Erro', 'error');
     } finally {
       hideOverlay();
     }
   }
 
   async function saveClienteRow(tenantId, body) {
-    showMsg('msgClientesLista', 'Salvando…', true);
+    toastMsg('Salvando…', 'warning');
     try {
       var r = await fetch(apiPrefix() + '/api/saas/clientes/' + encodeURIComponent(tenantId), {
         method: 'PUT',
@@ -891,16 +1119,16 @@
       });
       var data = await r.json();
       if (!r.ok) throw new Error(data.error || 'Erro');
-      showMsg('msgClientesLista', 'Cliente atualizado.', true);
+      toastMsg('Cliente atualizado.', 'success');
       if (typeof showMessage === 'function') showMessage('Cliente atualizado.', 'success');
       await loadClientesPanel();
     } catch (e) {
-      showMsg('msgClientesLista', e.message || 'Erro', false);
+      toastMsg(e.message || 'Erro', 'error');
     }
   }
 
   async function deleteClienteRow(tenantId) {
-    showMsg('msgClientesLista', 'Excluindo…', true);
+    toastMsg('Excluindo…', 'warning');
     showOverlay();
     try {
       var r = await fetch(apiPrefix() + '/api/saas/clientes/' + encodeURIComponent(tenantId), {
@@ -923,19 +1151,50 @@
                 : 'Erro ao excluir (' + r.status + ').')
         );
       }
-      showMsg('msgClientesLista', 'Cliente removido.', true);
+      toastMsg('Cliente removido.', 'success');
       await loadClientesPanel();
     } catch (e) {
-      showMsg('msgClientesLista', e.message || 'Erro', false);
+      toastMsg(e.message || 'Erro', 'error');
     } finally {
       hideOverlay();
     }
   }
 
+  var btnNovoCliente = document.getElementById('btnNovoCliente');
+  if (btnNovoCliente) {
+    btnNovoCliente.addEventListener('click', function () {
+      abrirNovoCliente();
+    });
+  }
+
   document.getElementById('btnCancelCliente').addEventListener('click', function () {
     limparFormularioCliente();
-    showMsg('msgClienteNovo', '', true);
+    fecharClienteModal();
   });
+
+  var btnClienteModalX = document.getElementById('saasClienteModalX');
+  if (btnClienteModalX) {
+    btnClienteModalX.addEventListener('click', function () {
+      limparFormularioCliente();
+      fecharClienteModal();
+    });
+  }
+
+  var saasClienteModal = document.getElementById('saasClienteModal');
+  if (saasClienteModal) {
+    saasClienteModal.addEventListener('click', function (ev) {
+      if (ev.target === saasClienteModal) {
+        limparFormularioCliente();
+        fecharClienteModal();
+      }
+    });
+    document.addEventListener('keydown', function (ev) {
+      if (ev.key === 'Escape' && saasClienteModal.classList.contains('is-open')) {
+        limparFormularioCliente();
+        fecharClienteModal();
+      }
+    });
+  }
 
   document.getElementById('btnAddCliente').addEventListener('click', async function () {
     if (salvandoCliente) return;
@@ -957,7 +1216,8 @@
       if (editandoTenant) {
         await saveClienteRow(editandoTenant, payload);
         limparFormularioCliente();
-        showMsg('msgClienteNovo', 'Cadastro atualizado.', true);
+        fecharClienteModal();
+        toastMsg('Cadastro atualizado.', 'success');
       } else {
         payload.tenant_id = valorCampo('newTenantId');
         if (!payload.tenant_id) throw new Error('Informe o tenant ID.');
@@ -969,7 +1229,8 @@
         var data = await r.json();
         if (!r.ok) throw new Error(data.error || 'Erro');
         limparFormularioCliente();
-        showMsg('msgClienteNovo', 'Cliente cadastrado.', true);
+        fecharClienteModal();
+        toastMsg('Cliente cadastrado.', 'success');
         await loadClientesPanel();
       }
     } catch (e) {
@@ -982,21 +1243,31 @@
     }
   });
 
-  var sel = document.getElementById('saasTenantSelect');
-  var grid = document.getElementById('saasModulosGrid');
-  var card = document.getElementById('saasModulosCard');
-  var btnSalvar = document.getElementById('saasBtnSalvar');
-  var msg = document.getElementById('saasMsg');
+  var gridOverride = null;
+  var overridePorTenant = {};
+  var editandoOverride = null;
 
-  function showOverrideMsg(text, ok) {
-    if (!msg) return;
-    msg.style.display = text ? 'block' : 'none';
-    msg.textContent = text || '';
-    msg.className = 'saas-msg ' + (ok ? 'ok' : 'err');
+  var gridElOverride = document.getElementById('saasModulosGrid');
+  var btnSalvarOverride = document.getElementById('saasBtnSalvar');
+
+  function fecharOverrideModal() {
+    var modal = document.getElementById('saasOverrideModal');
+    if (modal) {
+      modal.classList.remove('is-open');
+      modal.style.display = 'none';
+    }
+    editandoOverride = null;
+  }
+
+  function abrirOverrideModal() {
+    var modal = document.getElementById('saasOverrideModal');
+    if (!modal) return;
+    modal.style.display = 'flex';
+    modal.classList.add('is-open');
   }
 
   function renderOverrideCheckboxes(modules) {
-    if (!grid) return;
+    if (!gridElOverride) return;
     var keys = Object.keys(modules || {}).sort();
     if (!keys.length && catalogoModulos.length) {
       keys = catalogoModulos.map(function (m) {
@@ -1004,7 +1275,7 @@
       });
     }
     var m = modules || {};
-    grid.innerHTML = keys
+    gridElOverride.innerHTML = keys
       .map(function (k) {
         var on = m[k] !== false;
         var lbl = labelModulo(k);
@@ -1025,74 +1296,174 @@
         );
       })
       .join('');
-    if (card) card.style.display = 'block';
-    if (btnSalvar) btnSalvar.disabled = false;
+  }
+
+  function resumoModulosOverride(modules) {
+    var m = modules || {};
+    var keys = Object.keys(m);
+    if (!keys.length && catalogoModulos.length) {
+      keys = catalogoModulos.map(function (x) {
+        return x.CODIGO || x.codigo;
+      });
+    }
+    var on = keys.filter(function (k) {
+      return m[k] !== false;
+    });
+    return {
+      qtd: on.length,
+      total: keys.length,
+      txt: on.length ? on.map(labelModulo).join(', ') : 'Nenhum',
+    };
+  }
+
+  function initGridOverride() {
+    if (gridOverride || typeof window.GridEditor === 'undefined') return gridOverride;
+    gridOverride = new window.GridEditor({
+      container: '#overrideGrid',
+      columns: [
+        { field: 'TENANT_ID', header: 'Tenant', editable: false, isId: true, width: '160px' },
+        { field: 'QTD_MODULOS', header: 'Módulos ON', editable: false, width: '120px', align: 'right' },
+        { field: 'MODULOS_TXT', header: 'Módulos ativos', editable: false },
+      ],
+      canDeleteRow: function () {
+        return false;
+      },
+      onBeforeEdit: function (id) {
+        abrirEdicaoOverride(String(id));
+        return false;
+      },
+      onDelete: function () {},
+    });
+    if (gridOverride && typeof gridOverride.renderActions === 'function') {
+      var _raOvr = gridOverride.renderActions.bind(gridOverride);
+      gridOverride.renderActions = function (row, isEditing) {
+        return String(_raOvr(row, isEditing) || '').replace(
+          /<span class="grid-no-delete"[^>]*>\s*—\s*<\/span>/g,
+          ''
+        );
+      };
+    }
+    return gridOverride;
+  }
+
+  function renderOverrideTable(rows) {
+    setGridCount('overrideGridCountText', rows.length);
+    var wrap = document.getElementById('overrideGrid');
+    if (!wrap) return;
+    if (!rows.length) {
+      wrap.innerHTML = '<p class="empty">Nenhum tenant encontrado.</p>';
+      return;
+    }
+    if (typeof window.GridEditor === 'undefined') {
+      wrap.innerHTML = '<p class="empty">GridEditor não carregou. Atualize a página.</p>';
+      return;
+    }
+    initGridOverride();
+    gridOverride.render(rows);
+  }
+
+  async function abrirEdicaoOverride(tenantId) {
+    if (!tenantId) return;
+    editandoOverride = tenantId;
+    setCampo('overrideTenantId', tenantId);
+    var titulo = document.getElementById('saasOverrideModalTitulo');
+    if (titulo) titulo.innerHTML = '<i class="bx bx-edit"></i> Override · <code>' + escapeHtml(tenantId) + '</code>';
+    abrirOverrideModal();
+    try {
+      if (!catalogoModulos.length) {
+        var r0 = await fetch(apiPrefix() + '/api/saas/modulos-catalogo', { headers: getAuthJsonHeaders() });
+        var d0 = await r0.json();
+        catalogoModulos = d0.modulos || [];
+      }
+      var cached = overridePorTenant[tenantId];
+      if (cached && cached.modules) {
+        renderOverrideCheckboxes(cached.modules);
+      } else {
+        var enc = encodeURIComponent(tenantId);
+        var r = await fetch(apiPrefix() + '/api/saas/tenants/' + enc + '/modules', {
+          headers: getAuthJsonHeaders(),
+        });
+        var data = await r.json();
+        if (!r.ok) throw new Error(data.error || data.hint || 'Erro ao carregar.');
+        overridePorTenant[tenantId] = { tenantId: tenantId, modules: data.modules || {} };
+        renderOverrideCheckboxes(data.modules || {});
+      }
+    } catch (e) {
+      toastMsg(e.message || 'Erro', 'error');
+      fecharOverrideModal();
+    }
   }
 
   async function loadTenantsOverride() {
-    if (!catalogoModulos.length) {
-      var r0 = await fetch(apiPrefix() + '/api/saas/modulos-catalogo', { headers: getAuthJsonHeaders() });
-      var d0 = await r0.json();
-      catalogoModulos = d0.modulos || [];
-    }
     showOverlay();
     try {
+      if (!catalogoModulos.length) {
+        var r0 = await fetch(apiPrefix() + '/api/saas/modulos-catalogo', { headers: getAuthJsonHeaders() });
+        var d0 = await r0.json();
+        catalogoModulos = d0.modulos || [];
+      }
       var r = await fetch(apiPrefix() + '/api/saas/tenants', { headers: getAuthJsonHeaders() });
       var data = await r.json();
       if (!r.ok) throw new Error(data.error || 'Erro');
       var tenants = data.tenants || [];
-      if (!sel) return;
-      sel.innerHTML = '';
-      if (!tenants.length) {
-        sel.innerHTML = '<option value="">Nenhum tenant</option>';
-        hideOverlay();
-        return;
-      }
-      tenants.forEach(function (t) {
-        var id = t.tenantId != null ? String(t.tenantId) : '';
-        var opt = document.createElement('option');
-        opt.value = id;
-        opt.textContent = id || '(vazio)';
-        sel.appendChild(opt);
-      });
-      sel.selectedIndex = 0;
-      await loadModulesForTenant(sel.value);
+      overridePorTenant = {};
+      await Promise.all(
+        tenants.map(function (t) {
+          var id = t.tenantId != null ? String(t.tenantId) : '';
+          if (!id) return Promise.resolve();
+          return fetch(apiPrefix() + '/api/saas/tenants/' + encodeURIComponent(id) + '/modules', {
+            headers: getAuthJsonHeaders(),
+          })
+            .then(function (rr) {
+              return rr.json().then(function (dd) {
+                return { ok: rr.ok, id: id, data: dd };
+              });
+            })
+            .then(function (x) {
+              overridePorTenant[x.id] = {
+                tenantId: x.id,
+                modules: x.ok ? x.data.modules || {} : {},
+              };
+            })
+            .catch(function () {
+              overridePorTenant[id] = { tenantId: id, modules: {} };
+            });
+        })
+      );
+      var rows = tenants
+        .map(function (t) {
+          var id = t.tenantId != null ? String(t.tenantId) : '';
+          if (!id) return null;
+          var res = resumoModulosOverride((overridePorTenant[id] || {}).modules);
+          return {
+            TENANT_ID: id,
+            QTD_MODULOS: res.qtd + ' / ' + res.total,
+            MODULOS_TXT: res.txt,
+          };
+        })
+        .filter(Boolean);
+      renderOverrideTable(rows);
     } catch (e) {
-      showOverrideMsg(e.message || 'Erro', false);
+      setGridCount('overrideGridCountText', 0);
+      var wrap = document.getElementById('overrideGrid');
+      if (wrap) wrap.innerHTML = '<p class="empty">' + escapeHtml(e.message || 'Erro') + '</p>';
+      toastMsg(e.message || 'Erro', 'error');
     } finally {
       hideOverlay();
     }
   }
 
-  async function loadModulesForTenant(tenantId) {
-    showOverrideMsg('', true);
-    if (!tenantId) {
-      if (card) card.style.display = 'none';
-      return;
-    }
-    var enc = encodeURIComponent(tenantId);
-    var r = await fetch(apiPrefix() + '/api/saas/tenants/' + enc + '/modules', { headers: getAuthJsonHeaders() });
-    var data = await r.json();
-    if (!r.ok) {
-      showOverrideMsg(data.error || data.hint || 'Erro ao carregar.', false);
-      if (card) card.style.display = 'none';
-      return;
-    }
-    renderOverrideCheckboxes(data.modules);
-  }
-
   async function salvarOverride() {
-    var tenantId = sel && sel.value;
+    var tenantId = editandoOverride || valorCampo('overrideTenantId');
     if (!tenantId) return;
     var modules = {};
-    if (grid) {
-      grid.querySelectorAll('input[type="checkbox"][data-key]').forEach(function (inp) {
+    if (gridElOverride) {
+      gridElOverride.querySelectorAll('input[type="checkbox"][data-key]').forEach(function (inp) {
         var k = inp.getAttribute('data-key');
         if (k) modules[k] = inp.checked;
       });
     }
-    showOverrideMsg('Salvando…', true);
-    if (btnSalvar) btnSalvar.disabled = true;
+    if (btnSalvarOverride) btnSalvarOverride.disabled = true;
     try {
       var enc = encodeURIComponent(tenantId);
       var r = await fetch(apiPrefix() + '/api/saas/tenants/' + enc + '/modules', {
@@ -1102,20 +1473,36 @@
       });
       var data = await r.json();
       if (!r.ok) throw new Error(data.error || data.hint || 'Erro');
-      showOverrideMsg('Salvo.', true);
+      overridePorTenant[tenantId] = { tenantId: tenantId, modules: data.modules || modules };
+      toastMsg('Override salvo.', 'success');
+      fecharOverrideModal();
+      await loadTenantsOverride();
     } catch (e) {
-      showOverrideMsg(e.message || 'Erro de rede.', false);
+      toastMsg(e.message || 'Erro de rede.', 'error');
     } finally {
-      if (btnSalvar) btnSalvar.disabled = false;
+      if (btnSalvarOverride) btnSalvarOverride.disabled = false;
     }
   }
 
-  if (sel) {
-    sel.addEventListener('change', function () {
-      loadModulesForTenant(sel.value);
+  if (btnSalvarOverride) btnSalvarOverride.addEventListener('click', salvarOverride);
+  var saasOverrideModalX = document.getElementById('saasOverrideModalX');
+  if (saasOverrideModalX) {
+    saasOverrideModalX.addEventListener('click', function () {
+      fecharOverrideModal();
     });
   }
-  if (btnSalvar) btnSalvar.addEventListener('click', salvarOverride);
+  var saasOverrideCancel = document.getElementById('saasOverrideCancel');
+  if (saasOverrideCancel) {
+    saasOverrideCancel.addEventListener('click', function () {
+      fecharOverrideModal();
+    });
+  }
+  var saasOverrideModal = document.getElementById('saasOverrideModal');
+  if (saasOverrideModal) {
+    saasOverrideModal.addEventListener('click', function (ev) {
+      if (ev.target === saasOverrideModal) fecharOverrideModal();
+    });
+  }
 
   function formatarQuandoPedido(valor) {
     if (!valor) return '';
@@ -1157,9 +1544,173 @@
     return (ddi ? '+' + ddi + ' ' : '') + fone;
   }
 
+  var pedidosPorId = {};
+
+  function linhaDadoPedido(label, valor) {
+    return (
+      '<div style="display:grid;grid-template-columns:140px 1fr;gap:6px 12px;padding:6px 0;border-bottom:1px solid #e2e8f0;font-size:13px;line-height:1.4">' +
+      '<span style="color:#64748b">' +
+      escapeHtml(label) +
+      '</span>' +
+      '<span style="color:#0f172a;word-break:break-word">' +
+      (valor != null && String(valor) !== '' ? valor : '—') +
+      '</span></div>'
+    );
+  }
+
+  function htmlDetalhePedido(p) {
+    if (!p) return '<p>Pedido não encontrado.</p>';
+    var sit = p.SITUACAO || p.situacao || '—';
+    var tid = p.TENANT_ID || p.tenant_id || '';
+    var idioma = p.IDIOMA || p.idioma || '';
+    var pais = String(p.SGPAIS || p.sgpais || '').toUpperCase() || '—';
+    var waDet = p.WHATSAPP_DETALHE || p.whatsapp_detalhe || '';
+    var avisoDet = p.WHATSAPP_RESP_DETALHE || p.whatsapp_resp_detalhe || '';
+    var motivo = p.DS_MOTIVO || p.ds_motivo || '';
+    var decisor = p.SGUSER_DECISAO || p.sguser_decisao || '';
+    return (
+      '<div style="text-align:left;max-height:60vh;overflow:auto;margin:4px 0 8px">' +
+      linhaDadoPedido('Empresa', escapeHtml(p.NM_EMPRESA || p.nm_empresa || '')) +
+      linhaDadoPedido('Documento', escapeHtml(formatarDocPedido(p) || '—')) +
+      linhaDadoPedido('País', escapeHtml(pais)) +
+      linhaDadoPedido('Contato', escapeHtml(p.NM_CONTATO || p.nm_contato || '—')) +
+      linhaDadoPedido('E-mail', escapeHtml(p.EMAIL || p.email || '—')) +
+      linhaDadoPedido('Celular', escapeHtml(formatarFonePedido(p))) +
+      linhaDadoPedido('Idioma', escapeHtml(idioma || '—')) +
+      linhaDadoPedido('Usuário', '<code>' + escapeHtml(p.SGUSUARIO || p.sgusuario || '—') + '</code>') +
+      linhaDadoPedido('Situação', escapeHtml(sit) + (tid ? ' · <code>' + escapeHtml(tid) + '</code>' : '')) +
+      (motivo ? linhaDadoPedido('Motivo', escapeHtml(motivo)) : '') +
+      linhaDadoPedido('Pedido em', escapeHtml(formatarQuandoPedido(p.DH_PEDIDO || p.dh_pedido || '') || '—')) +
+      linhaDadoPedido('Decisão em', escapeHtml(formatarQuandoPedido(p.DH_DECISAO || p.dh_decisao || '') || '—')) +
+      (decisor ? linhaDadoPedido('Decidido por', escapeHtml(decisor)) : '') +
+      linhaDadoPedido(
+        'WhatsApp empresa',
+        escapeHtml(rotuloWhatsappPedido(p.WHATSAPP_STATUS || p.whatsapp_status)) +
+          (waDet ? ' — ' + escapeHtml(waDet) : '')
+      ) +
+      linhaDadoPedido(
+        'Aviso Atlas',
+        escapeHtml(rotuloWhatsappPedido(p.WHATSAPP_RESP_STATUS || p.whatsapp_resp_status)) +
+          (avisoDet ? ' — ' + escapeHtml(avisoDet) : '')
+      ) +
+      '<p style="margin:10px 0 0;font-size:12px;color:#64748b">A senha escolhida no cadastro não é exibida.</p>' +
+      '</div>'
+    );
+  }
+
+  function verDadosPedido(id) {
+    var p = pedidosPorId[String(id)];
+    if (!p) {
+      toastMsg('Pedido não encontrado na lista. Atualize a aba.', 'error');
+      return;
+    }
+    return saasConfirmModal({
+      title: 'Dados do pedido',
+      html: htmlDetalhePedido(p),
+      confirmHtml: '<i class="bx bx-x"></i> Fechar',
+      confirmClass: 'btn-filtro btn-filtro-limpar',
+      hideCancel: true,
+      plainFallback: 'Ver dados do pedido de acesso.',
+    });
+  }
+
+  function bindPedidosAcoes(container) {
+    if (!container) return;
+    container.querySelectorAll('.btn-ver-pedido').forEach(function (btn) {
+      btn.addEventListener('click', function () {
+        verDadosPedido(btn.getAttribute('data-id'));
+      });
+    });
+    container.querySelectorAll('.btn-liberar-pedido').forEach(function (btn) {
+      btn.addEventListener('click', function () {
+        decidirPedido(btn.getAttribute('data-id'), 'liberar', {
+          empresa: btn.getAttribute('data-empresa') || '',
+          usuario: btn.getAttribute('data-usuario') || '',
+          documento: btn.getAttribute('data-documento') || '',
+          email: btn.getAttribute('data-email') || '',
+        });
+      });
+    });
+    container.querySelectorAll('.btn-recusar-pedido').forEach(function (btn) {
+      btn.addEventListener('click', function () {
+        decidirPedido(btn.getAttribute('data-id'), 'recusar');
+      });
+    });
+  }
+
+  function initGridPedidos() {
+    if (gridPedidos || typeof window.GridEditor === 'undefined') return gridPedidos;
+    gridPedidos = new window.GridEditor({
+      container: '#pedidosGrid',
+      showActions: false,
+      columns: [
+        { field: 'ID', header: 'ID', editable: false, isId: true, hidden: true },
+        { field: 'EMPRESA', header: 'Empresa', editable: false },
+        { field: 'CONTATO', header: 'Contato', editable: false },
+        { field: 'WHATSAPP', header: 'WhatsApp', editable: false, width: '110px' },
+        { field: 'AVISO', header: 'Aviso', editable: false, width: '110px' },
+        { field: 'SITUACAO_TXT', header: 'Situação', editable: false, width: '140px' },
+        { field: 'QUANDO', header: 'Quando', editable: false, width: '150px' },
+        {
+          field: 'ACOES_HTML',
+          header: 'Ações',
+          editable: false,
+          sortable: false,
+          width: '200px',
+          format: function (val) {
+            return val || '';
+          },
+        },
+      ],
+      onAfterRender: function () {
+        bindPedidosAcoes(document.getElementById('pedidosGrid'));
+      },
+    });
+    return gridPedidos;
+  }
+
+  function normalizePedidoRow(p) {
+    var id = p.ID != null ? p.ID : p.id;
+    var sit = p.SITUACAO || p.situacao || '';
+    var tid = p.TENANT_ID || p.tenant_id || '';
+    var acoes =
+      '<button type="button" class="btn-filtro btn-filtro-limpar btn-sm btn-ver-pedido" data-id="' +
+      id +
+      '" title="Ver todos os dados"><i class="bx bx-show"></i> Ver</button>';
+    if (sit === 'PENDENTE') {
+      acoes +=
+        ' <button type="button" class="btn-filtro btn-filtro-aplicar btn-sm btn-liberar-pedido" data-id="' +
+        id +
+        '" data-empresa="' +
+        escapeHtml(p.NM_EMPRESA || p.nm_empresa || '') +
+        '" data-usuario="' +
+        escapeHtml(p.SGUSUARIO || p.sgusuario || '') +
+        '" data-documento="' +
+        escapeHtml(formatarDocPedido(p)) +
+        '" data-email="' +
+        escapeHtml(p.EMAIL || p.email || '') +
+        '"><i class="bx bx-check"></i> Liberar</button> ' +
+        '<button type="button" class="btn-filtro btn-filtro-limpar btn-sm btn-recusar-pedido" data-id="' +
+        id +
+        '"><i class="bx bx-x"></i> Recusar</button>';
+    }
+    return {
+      ID: String(id),
+      EMPRESA: p.NM_EMPRESA || p.nm_empresa || '',
+      CONTATO:
+        (p.NM_CONTATO || p.nm_contato || '—') +
+        (formatarFonePedido(p) !== '—' ? ' · ' + formatarFonePedido(p) : ''),
+      WHATSAPP: rotuloWhatsappPedido(p.WHATSAPP_STATUS || p.whatsapp_status),
+      AVISO: rotuloWhatsappPedido(p.WHATSAPP_RESP_STATUS || p.whatsapp_resp_status),
+      SITUACAO_TXT: sit + (tid ? ' · ' + tid : ''),
+      QUANDO: formatarQuandoPedido(p.DH_PEDIDO || p.dh_pedido || ''),
+      ACOES_HTML: acoes,
+      _raw: p,
+    };
+  }
+
   async function loadPedidos() {
-    var wrap = document.getElementById('tablePedidosWrap');
-    var msg = document.getElementById('msgPedidos');
+    var wrap = document.getElementById('pedidosGrid');
     var count = document.getElementById('pedidoCount');
     if (!wrap) return;
     try {
@@ -1167,57 +1718,34 @@
       var data = await r.json();
       if (!r.ok) throw new Error(data.error || 'Erro ao listar pedidos.');
       var lista = data.pedidos || [];
-      var pendentes = lista.filter(function (p) { return (p.SITUACAO || p.situacao) === 'PENDENTE'; }).length;
+      var pendentes = lista.filter(function (p) {
+        return (p.SITUACAO || p.situacao) === 'PENDENTE';
+      }).length;
       if (count) {
         count.hidden = pendentes < 1;
         count.textContent = String(pendentes);
       }
-      if (!lista.length) {
-        wrap.innerHTML = '<p class="saas-op-info">Nenhuma empresa pediu acesso ainda.</p>';
+      pedidosPorId = {};
+      var rows = lista.map(function (p) {
+        var row = normalizePedidoRow(p);
+        pedidosPorId[row.ID] = p;
+        return row;
+      });
+      setGridCount('pedidosGridCountText', rows.length);
+      if (!rows.length) {
+        wrap.innerHTML = '<p class="empty">Nenhuma empresa pediu acesso ainda.</p>';
         return;
       }
-      var html = '<table class="estatisticas-table"><thead><tr><th>Empresa</th><th>Documento</th><th>Contato</th><th>E-mail</th><th>Usuário</th><th>WhatsApp</th><th>Aviso ao responsável</th><th>Situação</th><th>Quando</th><th></th></tr></thead><tbody>';
-      lista.forEach(function (p) {
-        var id = p.ID != null ? p.ID : p.id;
-        var sit = p.SITUACAO || p.situacao || '';
-        var quando = formatarQuandoPedido(p.DH_PEDIDO || p.dh_pedido || '');
-        html += '<tr>';
-        html += '<td>' + escapeHtml(p.NM_EMPRESA || p.nm_empresa || '') + '</td>';
-        html += '<td>' + escapeHtml(formatarDocPedido(p)) + '</td>';
-        html += '<td>' + escapeHtml(p.NM_CONTATO || p.nm_contato || '') + '<br>' + escapeHtml(formatarFonePedido(p)) + '</td>';
-        html += '<td>' + escapeHtml(p.EMAIL || p.email || '') + '</td>';
-        html += '<td><code>' + escapeHtml(p.SGUSUARIO || p.sgusuario || '') + '</code></td>';
-        html += '<td title="' + escapeHtml(p.WHATSAPP_DETALHE || p.whatsapp_detalhe || '') + '">' + escapeHtml(rotuloWhatsappPedido(p.WHATSAPP_STATUS || p.whatsapp_status)) + '</td>';
-        html += '<td title="' + escapeHtml(p.WHATSAPP_RESP_DETALHE || p.whatsapp_resp_detalhe || '') + '">' + escapeHtml(rotuloWhatsappPedido(p.WHATSAPP_RESP_STATUS || p.whatsapp_resp_status)) + '</td>';
-        html += '<td>' + escapeHtml(sit) + (p.TENANT_ID || p.tenant_id ? '<br><code>' + escapeHtml(p.TENANT_ID || p.tenant_id) + '</code>' : '') + '</td>';
-        html += '<td>' + escapeHtml(quando) + '</td>';
-        html += '<td>';
-        if (sit === 'PENDENTE') {
-          html += '<button type="button" class="btn-filtro btn-filtro-aplicar btn-liberar-pedido" data-id="' + id + '" data-empresa="' + escapeHtml(p.NM_EMPRESA || p.nm_empresa || '') + '" data-usuario="' + escapeHtml(p.SGUSUARIO || p.sgusuario || '') + '">Liberar</button> ';
-          html += '<button type="button" class="btn-filtro btn-filtro-limpar btn-recusar-pedido" data-id="' + id + '">Recusar</button>';
-        }
-        html += '</td></tr>';
-      });
-      html += '</tbody></table>';
-      wrap.innerHTML = html;
-      wrap.querySelectorAll('.btn-liberar-pedido').forEach(function (btn) {
-        btn.addEventListener('click', function () {
-          decidirPedido(btn.getAttribute('data-id'), 'liberar', {
-            empresa: btn.getAttribute('data-empresa') || '',
-            usuario: btn.getAttribute('data-usuario') || '',
-          });
-        });
-      });
-      wrap.querySelectorAll('.btn-recusar-pedido').forEach(function (btn) {
-        btn.addEventListener('click', function () { decidirPedido(btn.getAttribute('data-id'), 'recusar'); });
-      });
-      if (msg) msg.style.display = 'none';
-    } catch (e) {
-      wrap.innerHTML = '';
-      if (msg) {
-        msg.style.display = 'block';
-        msg.textContent = e.message || 'Erro ao carregar pedidos.';
+      if (typeof window.GridEditor === 'undefined') {
+        wrap.innerHTML = '<p class="empty">GridEditor não carregou. Atualize a página.</p>';
+        return;
       }
+      initGridPedidos();
+      gridPedidos.render(rows);
+    } catch (e) {
+      setGridCount('pedidosGridCountText', 0);
+      wrap.innerHTML = '<p class="empty">' + escapeHtml(e.message || 'Erro ao carregar pedidos.') + '</p>';
+      toastMsg(e.message || 'Erro ao carregar pedidos.', 'error');
     }
   }
 
@@ -1273,8 +1801,20 @@
       var liberou = await saasConfirmModal({
         title: 'Liberar empresa',
         html:
-          '<p>Confira o identificador antes de liberar. Ele aparece no cabeçalho e na lista de usuários.</p>' +
-          '<p><strong>' + escapeHtml(extra.empresa || 'Empresa') + '</strong> · usuário <code>' + escapeHtml(extra.usuario || '') + '</code></p>' +
+          '<p>Confira os dados antes de liberar. O identificador aparece no cabeçalho e na lista de usuários.</p>' +
+          '<p><strong>' +
+          escapeHtml(extra.empresa || 'Empresa') +
+          '</strong></p>' +
+          '<p style="font-size:13px;line-height:1.45;color:#475569;margin:0 0 12px">' +
+          'Documento: <strong>' +
+          escapeHtml(extra.documento || '—') +
+          '</strong><br>' +
+          'E-mail: <strong>' +
+          escapeHtml(extra.email || '—') +
+          '</strong><br>' +
+          'Usuário: <code>' +
+          escapeHtml(extra.usuario || '—') +
+          '</code></p>' +
           '<label for="tenantIdLiberacao">Identificador do tenant</label>' +
           '<input id="tenantIdLiberacao" class="form-control" maxlength="32" autocomplete="off" spellcheck="false" value="' + escapeHtml(sugestao) + '">' +
           '<p id="tenantIdLiberacaoErro" style="color:#a94a3c;min-height:1.2em;margin:6px 0 0;"></p>' +
@@ -1289,7 +1829,6 @@
       });
       if (!liberou || !tenantEscolhido) return;
     }
-    var msg = document.getElementById('msgPedidos');
     decidindoPedido = true;
     try {
       var r = await fetch(apiPrefix() + '/api/saas/pedidos-acesso/' + encodeURIComponent(id) + '/' + acao, {
@@ -1299,17 +1838,11 @@
       });
       var data = await r.json();
       if (!r.ok) throw new Error(data.error || 'Não foi possível decidir o pedido.');
-      if (msg) {
-        msg.style.display = 'block';
-        msg.textContent = data.message || 'Pronto.';
-      }
+      toastMsg(data.message || 'Pronto.', 'success');
       document.dispatchEvent(new CustomEvent('pedidos-acesso-contador-atualizado'));
       await loadPedidos();
     } catch (e) {
-      if (msg) {
-        msg.style.display = 'block';
-        msg.textContent = e.message || 'Erro.';
-      }
+      toastMsg(e.message || 'Erro.', 'error');
     } finally {
       setTimeout(function () { decidindoPedido = false; }, 600);
     }
@@ -1375,20 +1908,50 @@
 
   function renderLimpeza(data) {
     var el = document.getElementById('limpezaResultado');
+    var countWrap = document.getElementById('limpezaGridCount');
+    var countTxt = document.getElementById('limpezaGridCountText');
     if (!el) return;
     var blocos = (data && data.blocos) || [];
-    if (!blocos.length) {
-      el.innerHTML = '';
+    var linhas = [];
+    blocos.forEach(function (b) {
+      (b.linhas || []).forEach(function (l) {
+        linhas.push({
+          BLOCO: b.nome || '',
+          TABELA: l.nome || '',
+          QTD: l.n != null ? l.n : 0,
+          JUNTO: l.inclusa ? 'Sim' : 'Não',
+        });
+      });
+    });
+    if (countWrap) countWrap.style.display = linhas.length ? '' : 'none';
+    if (countTxt) countTxt.textContent = linhas.length + ' registro(s) encontrado(s)';
+    if (!linhas.length) {
+      el.innerHTML = '<p class="empty">Nada para listar.</p>';
       return;
     }
-    el.innerHTML = blocos.map(function (b) {
-      var itens = (b.linhas || []).map(function (l) {
-        var extra = l.inclusa ? ' <span style="color:#e8c36a;">(entra junto)</span>' : '';
-        return '<li>' + escapeHtml(l.nome) + ': ' + l.n + extra + '</li>';
-      }).join('');
-      return '<p><strong>' + escapeHtml(b.nome) + '</strong>: ' + b.total + '</p>' +
-        (itens ? '<ul style="margin:0 0 12px 18px;">' + itens + '</ul>' : '');
-    }).join('');
+    var html =
+      '<table class="grid-table"><thead><tr>' +
+      '<th class="grid-header">Bloco</th><th class="grid-header">Tabela</th>' +
+      '<th class="grid-header grid-col-right">Qtd</th><th class="grid-header">Entra junto</th>' +
+      '</tr></thead><tbody>';
+    linhas.forEach(function (l) {
+      html +=
+        '<tr class="grid-row">' +
+        '<td class="grid-cell"><span class="cell-value">' +
+        escapeHtml(l.BLOCO) +
+        '</span></td>' +
+        '<td class="grid-cell"><span class="cell-value">' +
+        escapeHtml(l.TABELA) +
+        '</span></td>' +
+        '<td class="grid-cell grid-col-right"><span class="cell-value">' +
+        escapeHtml(String(l.QTD)) +
+        '</span></td>' +
+        '<td class="grid-cell"><span class="cell-value">' +
+        escapeHtml(l.JUNTO) +
+        '</span></td></tr>';
+    });
+    html += '</tbody></table>';
+    el.innerHTML = html;
   }
 
   async function carregarLimpeza() {

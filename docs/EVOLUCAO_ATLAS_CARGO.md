@@ -22,10 +22,23 @@ Como subir e o padrão visual: `docs/REPAGINACAO_ATLAS_CARGO.md`. Produto e logo
 | 25/11 | O quadro esquerdo do login virou o painel: torre, convocações, viagens e estoque. |
 | 26/11 | Planilha de motoristas no 1.0.Cadastro Geral: Baixar modelo e Importar. Celular é a chave. Célula vazia não apaga. Nome e celular já entram na campanha. O login do app fica pendente. |
 | 26/11 | No login do motorista a pessoa escolhe Celular, CPF ou CNPJ. A máscara muda com a opção. Em espanhol, a escolha é Celular ou Documento. |
-| 26/11 | No login da torre ficam duas portas: Sou motorista abre `/motorista/`. Cadastrar-se abre `/cadastro-empresa.html`. O link Cadastrar empresa saiu. O cadastro do motorista continua dentro do app. |
+| 26/11 | No login da torre (`index.html`): **Sou motorista** → `/motorista/`; **Cadastrar-se** → `/cadastro-empresa.html` (pedido de acesso da empresa). O cadastro do motorista continua em `/motorista/pages/cadastro.html`. |
 | 26/11 | Cadastro do motorista tem dois caminhos. O link da torre (`?empresa=`) nasce na empresa, inativo, e só ela vê. Sem empresa, cai no bolsão do `default`: as outras torres consultam, ligam a ficha sem segundo login, ou criam cadastro próprio com outro celular. |
 | 26/11 | Recuperação de senha do motorista e do painel grava o que aconteceu. Configurações → Recuperação de senha, só no tenant padrão: WhatsApp enviado ou não, senha alterada ou não. Código e senha nova não entram no registro. |
 | 26/11 | Pedido de acesso novo avisa o celular do cadastro do tenant padrão, pelo Switch do `default`. A fila Pedidos de acesso mostra se o aviso saiu ou o motivo da falha. |
+| 26/11 | Atlas Pay fases 1 e 2: contrato financeiro versionado (`FIN_*`), cobrança de conexão na confirmação da convocação (regra desligada por padrão), cancelamento na reativação e no desistir lote, baixa manual, API `/api/financeiro`, menu 9.7 `atlas-pay`. UI no padrão dos módulos (abas com ícones, `filtros-box`, Limpar/Filtrar/Novo, overlay com yield, dark mode). Script `backend/scripts/financeiro_atlas_pay_postgres.sql`. Sem Pix e sem bloqueio. Detalhe: `docs/ATLAS_PAY.md`. |
+| 26/11 | Auditoria pré-homologação Atlas Pay: `docs/RELATORIO_AUDITORIA_PRE_HOMOLOGACAO_ATLAS.md` (DDL incompleto no `script_db`, constraints dentro de `CREATE IF NOT EXISTS`, permissões, testes SKIP, dumps no Git). Sem alteração de código/banco. |
+| 26/11 | *(histórico)* Plano P0 preparado (só documento). **Superado** pelo apply local no mesmo dia. |
+| 26/11 | *(histórico)* Revisões P0/P0.2 e GO scratch PG14+PG18 (20/20 + D13). Na época: **ainda sem apply** em `atlas_cargo_prd`. **Superado** pelo apply HML operacional. |
+| 26/11 | *(histórico)* Preparação operacional: `.env` apontava `atlas_cargo_prd`; HML isolado inexistente. **Superado** — local autorizado como HML operacional. |
+| 26/11 | *(histórico)* P1 código + SQL revisado; script **ainda não aplicado**. **Superado** pelo apply + bootstrap. |
+| 26/11 | P1 **aplicado e validado** em `atlas_cargo_prd`: backup `atlas_cargo_prd_pre_p1_permissoes_20261126_160511.dump`; SHA-256 `E120E07F…D4B0`; bootstrap `admin`/`default` → **STRICT**; auditoria gravando; unitário **23/23**; integrados OK. |
+| 26/11 | P0 **aplicado e validado** em `atlas_cargo_prd`: backup `atlas_cargo_prd_pre_p0_constraints_20261126_161213.dump`; SHA-256 SQL `5AB0CF5E…C54D`; COMMIT + idempotência; D13 PASS; regressão OK. Sem DROP ROLE. Produção externa pendente (checklist item 11). |
+| 26/11 | Atlas Pay **P2**: 5 SKIP fechados → fases 1–2 **21 PASS / 0 FAIL / 0 SKIP**; P1 **23/23**; regra `default` = **N**. (Resíduo `atlas-pay-p2-test` existiu até 27/11 — removido no HML.) |
+| 26/11 | Fechamento documental P0+P1+P2: `docs/ATLAS_PAY.md` consolidado (endpoints incl. cancelar); recuperação de senha WhatsApp alinhada como **feita**. |
+| 26/11 | Atlas Pay **Fase 3** (uso): fechamento periódico, D5 `America/Sao_Paulo`, geração explícita de cobrança; correções finais fuso + HTTP 403 FIN_*; testes **32/0/0**. |
+| 26/11 | Atlas Pay **Fase 4** (inadimplência): **CONCLUÍDA E VALIDADA TECNICAMENTE NO AMBIENTE LOCAL** — regra definitiva (ABERTA não vencida → warning; 403 só vencida+BLOQUEIO); fail-open com warning; testes F4 **29/0/0** + regressão F3/P2/P1. Doc: `docs/ATLAS_PAY_FASE4_INADIMPLENCIA.md`. Produção externa não autorizada. |
+| 27/11 | Atlas Pay **Fases 1–4 ENCERRADAS no HML local**: D-01 (remoção motorista cancela CONEXAO se CONFIRMADA) + D-02 (origem TORRE/MOTORISTA); suíte D-01/D-02 **16/0**; homologação UI **13/13**; regressão P2/P1/F3/F4 verdes. Doc: `docs/ATLAS_PAY_FECHAMENTO_FASES_1_A_4.md`. Pix/Fase 5 não iniciada. |
 
 ## Login, o que a imagem precisaria ter
 
@@ -52,7 +65,7 @@ A empresa pede o tenant por fora. Quem já opera vê a fila e libera.
 | O quê | Onde |
 | --- | --- |
 | Página pública | `http://localhost:8083/cadastro-empresa.html` |
-| Link | No login da torre, “Cadastrar empresa” |
+| Link | No login da torre, “Cadastrar-se” |
 | Fila | Menu Sistema → Tenants e módulos, aba **Pedidos de acesso** |
 | Ao liberar | Pede um identificador curto e confirmado (não usa o nome jurídico inteiro). Nasce o cliente (`SAAS_CLIENTE_CONTRATANTE`), o usuário com a senha que a empresa escolheu, e as atividades de quem liberou, sem Tenants e sem Tipos de Atividade |
 | Ao recusar | O pedido fica recusado. A senha não aparece na fila |
@@ -85,25 +98,43 @@ Quem abre o link sem empresa entra no bolsão do Atlas (`default`). A ficha fica
 
 Quem já tem o banco roda `backend/scripts/cadastro_tenant_vinculo_postgres.sql`. A tabela também é criada na primeira consulta.
 
-## Falta — WhatsApp do tenant padrão
+## Atlas Pay — estado vigente (local)
 
-A tela 9.4 Configurações → Switch / WhatsApp não tem recuperação de senha, suporte nem pedido de apoio. Ela guarda o canal: endpoint, método, token, fila, assinatura e teste. Não é uma lista de avisos.
-
-O canal desses avisos é o do tenant padrão (`default`), o mesmo já usado no pedido de acesso da empresa. Não nasce uma segunda credencial.
-
-| Aviso | Hoje | Para onde vai |
+| Fase | Situação | Próximo passo |
 | --- | --- | --- |
-| Recuperação de senha do motorista | A página segue o login: Celular, CPF ou CNPJ. O código sai no WhatsApp do celular do cadastro, pelo canal do `default` | Feito em 26/11 |
-| Recuperação de senha do painel | O login da torre tem Esqueci minha senha em `/recuperar-senha.html`. O código sai no WhatsApp do celular ligado ao usuário, pelo mesmo canal | Feito em 26/11 |
-| Suporte | Não existe | Mensagem pelo canal do `default` |
-| Pedido de apoio | Não existe | Mensagem pelo canal do `default` |
+| P0 constraints | **ATIVO** no `atlas_cargo_prd` local | Autorização específica para produção externa |
+| P1 permissões | **ATIVO** STRICT (`admin` = `FINANCEIRO_ADMIN`) | Anti-elevação HTTP com 2º usuário: opcional histórico (já coberto em unitário `canGrantProfile`) |
+| P2 testes | **FECHADO** — 21/0/0 + P1 23/0; regra `default` = **N** | — |
+| Pix / gateway | Só baixa manual | Integração bancária (nova fase) |
+| Uso da plataforma (Fase 3) | **CONCLUÍDA** (26/11) — D5 SP + HTTP 403 FIN_* | `docs/ATLAS_PAY_FASE3_FECHAMENTO_USO.md`; testes 32/0/0 |
+| Inadimplência (Fase 4) | **ENCERRADA no HML** (27/11) com Fases 1–3 | `docs/ATLAS_PAY_FECHAMENTO_FASES_1_A_4.md`; F4 29/0/0; D-01/D-02 16/0; UI 13/13 |
+| Cobrança dos agentes (pós F1–4) | **Etapa 0 feita 27/11** | Seletor de agente no 9.7 (`default`); demais etapas em `docs/ATLAS_PAY_EVOLUCAO_AGENTES.md` |
+| 27/11 | HML SaaS limpo: removidos fixtures `atlas-pay-*` (f3/f4/d01/p2). Clientes: `default`, `cleverson-scopel`. |
+| Pix / gateway (Fase 5) | **Não iniciada** | Conta sandbox + proposta; só após piloto de agentes OK |
 
-Quando sair de falta para feito, o código de recuperação deixa de ficar só no log e a frase da tela deixa de prometer SMS ou e-mail.
+## WhatsApp do tenant padrão
+
+A tela Configurações → Switch / WhatsApp guarda o **canal** (endpoint, método, token, fila, assinatura e teste) e o **destino Atlas** (`whatsapp_destino_suporte`). O canal é o do tenant `default`; não nasce segunda credencial.
+
+| Aviso | Situação |
+| --- | --- |
+| Recuperação de senha do motorista | **Feito (26/11)** — código no WhatsApp do celular do cadastro, canal `default` |
+| Recuperação de senha do painel | **Feito (26/11)** — `/recuperar-senha.html`; código no WhatsApp do celular ligado ao operador (ou contato da empresa) |
+| Suporte | **Feito (26/11)** — painel (ícone Ajuda) e app motorista (Configurações); API `/api/apoio/*` |
+| Pedido de apoio | **Feito (26/11)** — mesmo canal; tipos OPERACIONAL / TECNICO / FINANCEIRO / OUTRO |
 
 ### Como ficou a recuperação de senha
 
-A página do motorista segue o login: Celular, CPF ou CNPJ. Um celular de 11 dígitos deixa de ser lido como CPF. O código de 6 dígitos vale 15 minutos e sai no WhatsApp do celular do cadastro, pelo tenant `default`. Se o token estiver vazio, a tela avisa e não finge que o código saiu.
+Motorista: escolha Celular, CPF ou CNPJ; celular de 11 dígitos não é lido como CPF; código de 6 dígitos vale 15 minutos e **sai no WhatsApp** pelo tenant `default`. Se o token do canal estiver vazio, a tela avisa e não finge envio. O log de Configurações → Recuperação de senha registra se o WhatsApp saiu ou não; **código e senha nova não entram no registro**.
 
-O login da torre ganhou **Esqueci minha senha**, em `/recuperar-senha.html`. Vale o login, o nome ou o e-mail. O código vai no WhatsApp do celular do cadastro desse operador. Se o usuário não tem cadastro ligado, e é o contato da empresa, o código sai no celular desse cadastro.
+Torre: **Esqueci minha senha** em `/recuperar-senha.html` (login, nome ou e-mail). O código vai no WhatsApp do celular do cadastro do operador (ou do contato da empresa, se não houver cadastro ligado).
 
-Suporte e pedido de apoio continuam faltando. Usam o mesmo canal e precisam de um celular de destino da Atlas.
+### Suporte e pedido de apoio
+
+- Envio pelo Switch Digital do tenant `default` (mesmo token/canal).
+- Destino: `CONFIGURACAO.whatsapp_destino_suporte` (tenant `default`) ou fallback `TELEFONE_SUPORTE` no `.env`. Sem destino → mensagem clara + log de falha.
+- Tenant de origem sempre da sessão (body não altera).
+- Log em `APOIO_WHATSAPP_LOG` (sucesso/falha, máscara do destino, sem token). Deduplicação 120s.
+- Script: `backend/scripts/apoio_whatsapp_log_postgres.sql`. Teste: `node backend/scripts/test_apoio_whatsapp.js`.
+
+**Ativação operacional (26/11, `atlas_cargo_prd` local):** canal Switch do `default` **ok** (endpoint oficial, método POST, token preenchido, userId/queueId presentes). `whatsapp_destino_suporte` = **vazio**; `TELEFONE_SUPORTE` = **vazio**. Destino mantido vazio (não inventado). Teste E2E de envio painel/motorista **não executado** — bloqueado até a Atlas informar o número.

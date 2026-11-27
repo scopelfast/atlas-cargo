@@ -1,0 +1,682 @@
+[
+  {
+    "mod": "Público",
+    "tela": "Login Torre",
+    "url": "/index.html",
+    "func": "PRONTA",
+    "vis": "PRONTA",
+    "shot": "docs/inventario_telas/screenshots/00-publico/login-torre-claro.png"
+  },
+  {
+    "mod": "Público",
+    "tela": "Login Torre (mobile)",
+    "url": "/index.html",
+    "func": "PRONTA",
+    "vis": "PRONTA",
+    "shot": "docs/inventario_telas/screenshots/00-publico/login-torre-mobile.png"
+  },
+  {
+    "mod": "Público",
+    "tela": "Recuperar senha torre",
+    "url": "/recuperar-senha.html",
+    "func": "PRONTA",
+    "vis": "PRONTA",
+    "shot": "docs/inventario_telas/screenshots/00-publico/recuperar-senha-torre.png"
+  },
+  {
+    "mod": "Público",
+    "tela": "Cadastrar-se (empresa)",
+    "url": "/cadastro-empresa.html",
+    "func": "PRONTA",
+    "vis": "PRONTA",
+    "shot": "docs/inventario_telas/screenshots/00-publico/cadastro-empresa.png"
+  },
+  {
+    "mod": "Público",
+    "tela": "Convocação pública",
+    "url": "/convocacao.html",
+    "func": "PRONTA",
+    "vis": "PRONTA",
+    "shot": "docs/inventario_telas/screenshots/00-publico/convocacao-publica.png"
+  },
+  {
+    "mod": "Público",
+    "tela": "Dashboard shell",
+    "url": "/dashboard.html",
+    "func": "PRONTA",
+    "vis": "PRONTA",
+    "shot": "docs/inventario_telas/screenshots/00-publico/dashboard-shell.png"
+  },
+  {
+    "mod": "Público",
+    "tela": "BI Cenário Base",
+    "url": "/bi-cenario-base.html",
+    "func": "PARCIAL",
+    "vis": "PARCIAL",
+    "shot": "docs/inventario_telas/screenshots/00-publico/bi-cenario-base.png"
+  },
+  {
+    "mod": "Público",
+    "tela": "Teste mobile",
+    "url": "/teste-mobile.html",
+    "func": "PARCIAL",
+    "vis": "PARCIAL",
+    "shot": "docs/inventario_telas/screenshots/00-publico/teste-mobile.png"
+  },
+  {
+    "mod": "Público",
+    "tela": "BI Volume PR-SC",
+    "url": "/bi-volume-pr-sc.html",
+    "func": "PARCIAL",
+    "vis": "PARCIAL",
+    "shot": "docs/inventario_telas/screenshots/00-publico/bi-cenario-base.png"
+  },
+  {
+    "mod": "Cadastros",
+    "tela": "Cadastro Geral",
+    "url": "/modulos/gerenciar-cadastro-geral/index.html",
+    "func": "PRONTA",
+    "vis": "PRONTA",
+    "shot": "docs/inventario_telas/screenshots/01-cadastros/cadastro-geral.png"
+  },
+  {
+    "mod": "Cadastros",
+    "tela": "Estados",
+    "url": "/modulos/gerenciar-estados/index.html",
+    "func": "PRONTA",
+    "vis": "PRONTA",
+    "shot": "docs/inventario_telas/screenshots/01-cadastros/estados.png"
+  },
+  {
+    "mod": "Cadastros",
+    "tela": "Mesorregião",
+    "url": "/modulos/gerenciar-mesorregiao/index.html",
+    "func": "PRONTA",
+    "vis": "PRONTA",
+    "shot": "docs/inventario_telas/screenshots/01-cadastros/mesorregiao.png"
+  },
+  {
+    "mod": "Cadastros",
+    "tela": "Cidades",
+    "url": "/modulos/gerenciar-cidades/index.html",
+    "func": "PRONTA",
+    "vis": "PRONTA",
+    "shot": "docs/inventario_telas/screenshots/01-cadastros/cidades.png"
+  },
+  {
+    "mod": "Cadastros",
+    "tela": "Tipos de Validade",
+    "url": "/modulos/gerenciar-tipos-validade/index.html",
+    "func": "PRONTA",
+    "vis": "PRONTA",
+    "shot": "docs/inventario_telas/screenshots/01-cadastros/tipos-validade.png"
+  },
+  {
+    "mod": "Equipamentos",
+    "tela": "Veículos/Equipamentos",
+    "url": "/modulos/gerenciar-equipamentos/index.html",
+    "func": "PRONTA",
+    "vis": "PRONTA",
+    "shot": "docs/inventario_telas/screenshots/02-equipamentos/equipamentos.png"
+  },
+  {
+    "mod": "Equipamentos",
+    "tela": "Marcas",
+    "url": "/modulos/gerenciar-marcas/index.html",
+    "func": "PRONTA",
+    "vis": "PRONTA",
+    "shot": "docs/inventario_telas/screenshots/02-equipamentos/marcas.png"
+  },
+  {
+    "mod": "Equipamentos",
+    "tela": "Tipos de Equipamento",
+    "url": "/modulos/gerenciar-tipos-equipamento/index.html",
+    "func": "PRONTA",
+    "vis": "PRONTA",
+    "shot": "docs/inventario_telas/screenshots/02-equipamentos/tipos-equipamento.png"
+  },
+  {
+    "mod": "Equipamentos",
+    "tela": "Modelos",
+    "url": "/modulos/gerenciar-modelos-equipamento/index.html",
+    "func": "PRONTA",
+    "vis": "PRONTA",
+    "shot": "docs/inventario_telas/screenshots/02-equipamentos/modelos.png"
+  },
+  {
+    "mod": "Equipamentos",
+    "tela": "Grupos",
+    "url": "/modulos/gerenciar-grupos/index.html",
+    "func": "PRONTA",
+    "vis": "PRONTA",
+    "shot": "docs/inventario_telas/screenshots/02-equipamentos/grupos.png"
+  },
+  {
+    "mod": "Equipamentos",
+    "tela": "Classes de Frota",
+    "url": "/modulos/gerenciar-classes-frota/index.html",
+    "func": "PRONTA",
+    "vis": "PRONTA",
+    "shot": "docs/inventario_telas/screenshots/02-equipamentos/classes-frota.png"
+  },
+  {
+    "mod": "Logística",
+    "tela": "Viagens",
+    "url": "/modulos/gerenciar-viagens/index.html",
+    "func": "PRONTA",
+    "vis": "PRONTA",
+    "shot": "docs/inventario_telas/screenshots/03-logistica/viagens.png"
+  },
+  {
+    "mod": "Logística",
+    "tela": "Tipos de Viagem",
+    "url": "/modulos/gerenciar-tipos-viagem/index.html",
+    "func": "PRONTA",
+    "vis": "PRONTA",
+    "shot": "docs/inventario_telas/screenshots/03-logistica/tipos-viagem.png"
+  },
+  {
+    "mod": "Logística",
+    "tela": "Situações de Viagem",
+    "url": "/modulos/gerenciar-situacoes-viagem/index.html",
+    "func": "PRONTA",
+    "vis": "PRONTA",
+    "shot": "docs/inventario_telas/screenshots/03-logistica/situacoes-viagem.png"
+  },
+  {
+    "mod": "Logística",
+    "tela": "Roteiros",
+    "url": "/modulos/gerenciar-roteiros/index.html",
+    "func": "PRONTA",
+    "vis": "PRONTA",
+    "shot": "docs/inventario_telas/screenshots/03-logistica/roteiros.png"
+  },
+  {
+    "mod": "Logística",
+    "tela": "Tipo Ocorrência (Macros)",
+    "url": "/modulos/gerenciar-tipo-ocorrencia/index.html",
+    "func": "PRONTA",
+    "vis": "PRONTA",
+    "shot": "docs/inventario_telas/screenshots/03-logistica/tipo-ocorrencia.png"
+  },
+  {
+    "mod": "Logística",
+    "tela": "Campanhas de Oportunidades",
+    "url": "/modulos/campanhas-oportunidades/index.html",
+    "func": "PRONTA",
+    "vis": "PRONTA",
+    "shot": "docs/inventario_telas/screenshots/03-logistica/campanhas-oportunidades.png"
+  },
+  {
+    "mod": "Gestão",
+    "tela": "Relatório Convocações",
+    "url": "/modulos/relatorio-convocacoes/index.html",
+    "func": "PRONTA",
+    "vis": "PRONTA",
+    "shot": "docs/inventario_telas/screenshots/04-gestao/relatorio-convocacoes.png"
+  },
+  {
+    "mod": "Gestão",
+    "tela": "Alertas",
+    "url": "/modulos/alertas/index.html",
+    "func": "PRONTA",
+    "vis": "PRONTA",
+    "shot": "docs/inventario_telas/screenshots/04-gestao/alertas.png"
+  },
+  {
+    "mod": "Gestão",
+    "tela": "Chat",
+    "url": "/modulos/chat/index.html",
+    "func": "PRONTA",
+    "vis": "PRONTA",
+    "shot": "docs/inventario_telas/screenshots/04-gestao/chat.png"
+  },
+  {
+    "mod": "Gestão",
+    "tela": "SOS",
+    "url": "/modulos/sos/index.html",
+    "func": "PRONTA",
+    "vis": "PRONTA",
+    "shot": "docs/inventario_telas/screenshots/04-gestao/sos.png"
+  },
+  {
+    "mod": "Gestão",
+    "tela": "Ranking",
+    "url": "/modulos/ranking/index.html",
+    "func": "INCOMPLETA",
+    "vis": "INCOMPLETA",
+    "shot": "docs/inventario_telas/screenshots/04-gestao/ranking.png"
+  },
+  {
+    "mod": "Gestão",
+    "tela": "Mapa de Viagem",
+    "url": "/modulos/gerenciar-mapa-viagem/index.html",
+    "func": "PRONTA",
+    "vis": "PRONTA",
+    "shot": "docs/inventario_telas/screenshots/04-gestao/mapa-viagem.png"
+  },
+  {
+    "mod": "Gestão",
+    "tela": "Logs de Acesso",
+    "url": "/modulos/gerenciar-logs-acesso/index.html",
+    "func": "PRONTA",
+    "vis": "PRONTA",
+    "shot": "docs/inventario_telas/screenshots/04-gestao/logs-acesso.png"
+  },
+  {
+    "mod": "WMS",
+    "tela": "Painel Estoque",
+    "url": "/modulos/estoque/index.html",
+    "func": "PARCIAL",
+    "vis": "PARCIAL",
+    "shot": "docs/inventario_telas/screenshots/05-wms/painel-estoque.png"
+  },
+  {
+    "mod": "WMS",
+    "tela": "Cadastros WMS",
+    "url": "/modulos/estoque-cadastros-wms/index.html",
+    "func": "PRONTA",
+    "vis": "PRONTA",
+    "shot": "docs/inventario_telas/screenshots/05-wms/cadastros-wms.png"
+  },
+  {
+    "mod": "WMS",
+    "tela": "Recebimento",
+    "url": "/modulos/estoque-recebimento/index.html",
+    "func": "PRONTA",
+    "vis": "PRONTA",
+    "shot": "docs/inventario_telas/screenshots/05-wms/recebimento.png"
+  },
+  {
+    "mod": "WMS",
+    "tela": "Separação",
+    "url": "/modulos/estoque-separacao/index.html",
+    "func": "PRONTA",
+    "vis": "PRONTA",
+    "shot": "docs/inventario_telas/screenshots/05-wms/separacao.png"
+  },
+  {
+    "mod": "WMS",
+    "tela": "Cargas",
+    "url": "/modulos/estoque-cargas/index.html",
+    "func": "PRONTA",
+    "vis": "PRONTA",
+    "shot": "docs/inventario_telas/screenshots/05-wms/cargas.png"
+  },
+  {
+    "mod": "WMS",
+    "tela": "Expedição",
+    "url": "/modulos/estoque-expedicao/index.html",
+    "func": "PRONTA",
+    "vis": "PRONTA",
+    "shot": "docs/inventario_telas/screenshots/05-wms/expedicao.png"
+  },
+  {
+    "mod": "WMS",
+    "tela": "Baixas / Perdas",
+    "url": "/modulos/estoque-baixas/index.html",
+    "func": "PRONTA",
+    "vis": "PRONTA",
+    "shot": "docs/inventario_telas/screenshots/05-wms/baixas.png"
+  },
+  {
+    "mod": "WMS",
+    "tela": "Relatórios",
+    "url": "/modulos/estoque-relatorios/index.html",
+    "func": "PRONTA",
+    "vis": "PRONTA",
+    "shot": "docs/inventario_telas/screenshots/05-wms/relatorios.png"
+  },
+  {
+    "mod": "WMS",
+    "tela": "Inventário",
+    "url": "/modulos/estoque-inventario/index.html",
+    "func": "PRONTA",
+    "vis": "PRONTA",
+    "shot": "docs/inventario_telas/screenshots/05-wms/inventario.png"
+  },
+  {
+    "mod": "WMS",
+    "tela": "Transferências",
+    "url": "/modulos/estoque-transferencias/index.html",
+    "func": "PRONTA",
+    "vis": "PRONTA",
+    "shot": "docs/inventario_telas/screenshots/05-wms/transferencias.png"
+  },
+  {
+    "mod": "WMS",
+    "tela": "Valor Estoque",
+    "url": "/modulos/estoque-valor/index.html",
+    "func": "PRONTA",
+    "vis": "PRONTA",
+    "shot": "docs/inventario_telas/screenshots/05-wms/valor-estoque.png"
+  },
+  {
+    "mod": "WMS",
+    "tela": "Cobrança WMS 7.1",
+    "url": "/modulos/estoque-cobranca/index.html",
+    "func": "PRONTA",
+    "vis": "PRONTA",
+    "shot": "docs/inventario_telas/screenshots/05-wms/cobranca-wms.png"
+  },
+  {
+    "mod": "Sistema",
+    "tela": "Usuários",
+    "url": "/modulos/gerenciar-usuarios/index.html",
+    "func": "PRONTA",
+    "vis": "PRONTA",
+    "shot": "docs/inventario_telas/screenshots/06-sistema/usuarios.png"
+  },
+  {
+    "mod": "Sistema",
+    "tela": "Tipos de Atividade",
+    "url": "/modulos/gerenciar-tipos-atividade/index.html",
+    "func": "PRONTA",
+    "vis": "PRONTA",
+    "shot": "docs/inventario_telas/screenshots/06-sistema/tipos-atividade.png"
+  },
+  {
+    "mod": "Sistema",
+    "tela": "Empresas",
+    "url": "/modulos/gerenciar-empresas/index.html",
+    "func": "PRONTA",
+    "vis": "PRONTA",
+    "shot": "docs/inventario_telas/screenshots/06-sistema/empresas.png"
+  },
+  {
+    "mod": "Sistema",
+    "tela": "Filiais",
+    "url": "/modulos/gerenciar-filiais/index.html",
+    "func": "PRONTA",
+    "vis": "PRONTA",
+    "shot": "docs/inventario_telas/screenshots/06-sistema/filiais.png"
+  },
+  {
+    "mod": "Sistema",
+    "tela": "Configurações",
+    "url": "/modulos/gerenciar-configuracoes/index.html",
+    "func": "PRONTA",
+    "vis": "PRONTA",
+    "shot": "docs/inventario_telas/screenshots/06-sistema/configuracoes.png"
+  },
+  {
+    "mod": "Sistema",
+    "tela": "Tenants e módulos",
+    "url": "/modulos/gerenciar-tenants-saas/index.html",
+    "func": "PRONTA",
+    "vis": "PRONTA",
+    "shot": "docs/inventario_telas/screenshots/06-sistema/tenants-saas.png"
+  },
+  {
+    "mod": "Sistema",
+    "tela": "Disparo WhatsApp",
+    "url": "/modulos/gerenciar-disparo-whatsapp/index.html",
+    "func": "PRONTA",
+    "vis": "PRONTA",
+    "shot": "docs/inventario_telas/screenshots/06-sistema/disparo-whatsapp.png"
+  },
+  {
+    "mod": "Atlas Pay",
+    "tela": "Atlas Pay",
+    "url": "/modulos/atlas-pay/index.html",
+    "func": "PRONTA",
+    "vis": "PRONTA",
+    "shot": "docs/inventario_telas/screenshots/07-atlas-pay/atlas-pay.png"
+  },
+  {
+    "mod": "WMS (permissão)",
+    "tela": "Liberar Expedição divergência",
+    "url": "(sem HTML; embutido em Expedição)",
+    "func": "PARCIAL",
+    "vis": "N/A",
+    "shot": "(sem captura)"
+  },
+  {
+    "mod": "WMS (permissão)",
+    "tela": "Liberar Validade mínima",
+    "url": "(sem HTML; embutido em Recebimento)",
+    "func": "PARCIAL",
+    "vis": "N/A",
+    "shot": "(sem captura)"
+  },
+  {
+    "mod": "WMS (permissão)",
+    "tela": "Lib. picking OPL s/ cobertura",
+    "url": "(sem HTML; embutido em Separação)",
+    "func": "PARCIAL",
+    "vis": "N/A",
+    "shot": "(sem captura)"
+  },
+  {
+    "mod": "Frota (futuro)",
+    "tela": "Manutenção / Oficina",
+    "url": "—",
+    "func": "NÃO IMPLEMENTADA",
+    "vis": "NÃO IMPLEMENTADA",
+    "shot": "(sem captura)"
+  },
+  {
+    "mod": "Frota (futuro)",
+    "tela": "Gestão de Pneus",
+    "url": "—",
+    "func": "NÃO IMPLEMENTADA",
+    "vis": "NÃO IMPLEMENTADA",
+    "shot": "(sem captura)"
+  },
+  {
+    "mod": "Frota (futuro)",
+    "tela": "Controle de Combustível",
+    "url": "—",
+    "func": "NÃO IMPLEMENTADA",
+    "vis": "NÃO IMPLEMENTADA",
+    "shot": "(sem captura)"
+  },
+  {
+    "mod": "Atlas Pay (futuro)",
+    "tela": "Pix / Gateway",
+    "url": "—",
+    "func": "NÃO IMPLEMENTADA",
+    "vis": "NÃO IMPLEMENTADA",
+    "shot": "(sem captura)"
+  },
+  {
+    "mod": "App Motorista",
+    "tela": "Login Motorista",
+    "url": "/motorista/index.html",
+    "func": "PRONTA",
+    "vis": "PRONTA",
+    "shot": "docs/inventario_telas/screenshots/08-motorista/login-motorista.png"
+  },
+  {
+    "mod": "App Motorista",
+    "tela": "Login Motorista mobile",
+    "url": "/motorista/index.html",
+    "func": "PRONTA",
+    "vis": "PRONTA",
+    "shot": "docs/inventario_telas/screenshots/08-motorista/login-motorista-mobile.png"
+  },
+  {
+    "mod": "App Motorista",
+    "tela": "Cadastro Motorista",
+    "url": "/motorista/pages/cadastro.html",
+    "func": "PRONTA",
+    "vis": "PRONTA",
+    "shot": "docs/inventario_telas/screenshots/08-motorista/cadastro-motorista.png"
+  },
+  {
+    "mod": "App Motorista",
+    "tela": "Recuperar senha",
+    "url": "/motorista/pages/recuperar-senha.html",
+    "func": "PRONTA",
+    "vis": "PRONTA",
+    "shot": "docs/inventario_telas/screenshots/08-motorista/recuperar-senha.png"
+  },
+  {
+    "mod": "App Motorista",
+    "tela": "Dashboard",
+    "url": "/motorista/pages/dashboard.html",
+    "func": "PRONTA",
+    "vis": "PRONTA",
+    "shot": "docs/inventario_telas/screenshots/08-motorista/dashboard.png"
+  },
+  {
+    "mod": "App Motorista",
+    "tela": "Convocações",
+    "url": "/motorista/pages/convocacoes.html",
+    "func": "PRONTA",
+    "vis": "PRONTA",
+    "shot": "docs/inventario_telas/screenshots/08-motorista/convocacoes.png"
+  },
+  {
+    "mod": "App Motorista",
+    "tela": "Cargas",
+    "url": "/motorista/pages/cargas.html",
+    "func": "PRONTA",
+    "vis": "PRONTA",
+    "shot": "docs/inventario_telas/screenshots/08-motorista/cargas.png"
+  },
+  {
+    "mod": "App Motorista",
+    "tela": "Viagens",
+    "url": "/motorista/pages/viagens.html",
+    "func": "PRONTA",
+    "vis": "PRONTA",
+    "shot": "docs/inventario_telas/screenshots/08-motorista/viagens.png"
+  },
+  {
+    "mod": "App Motorista",
+    "tela": "Detalhes viagem",
+    "url": "/motorista/pages/detalhes-viagem.html",
+    "func": "PRONTA",
+    "vis": "PRONTA",
+    "shot": "docs/inventario_telas/screenshots/08-motorista/detalhes-viagem.png"
+  },
+  {
+    "mod": "App Motorista",
+    "tela": "Macros",
+    "url": "/motorista/pages/macros.html",
+    "func": "PRONTA",
+    "vis": "PRONTA",
+    "shot": "docs/inventario_telas/screenshots/08-motorista/macros.png"
+  },
+  {
+    "mod": "App Motorista",
+    "tela": "GPS",
+    "url": "/motorista/pages/gps.html",
+    "func": "PARCIAL",
+    "vis": "PARCIAL",
+    "shot": "docs/inventario_telas/screenshots/08-motorista/gps.png"
+  },
+  {
+    "mod": "App Motorista",
+    "tela": "Rastreamento",
+    "url": "/motorista/pages/rastreamento.html",
+    "func": "PARCIAL",
+    "vis": "PARCIAL",
+    "shot": "docs/inventario_telas/screenshots/08-motorista/rastreamento.png"
+  },
+  {
+    "mod": "App Motorista",
+    "tela": "Enviar posição",
+    "url": "/motorista/pages/enviar-posicao.html",
+    "func": "PARCIAL",
+    "vis": "PARCIAL",
+    "shot": "docs/inventario_telas/screenshots/08-motorista/enviar-posicao.png"
+  },
+  {
+    "mod": "App Motorista",
+    "tela": "GPS visualização",
+    "url": "/motorista/pages/gps-visualizacao.html",
+    "func": "PARCIAL",
+    "vis": "PARCIAL",
+    "shot": "docs/inventario_telas/screenshots/08-motorista/gps-visualizacao.png"
+  },
+  {
+    "mod": "App Motorista",
+    "tela": "Ajuda GPS",
+    "url": "/motorista/pages/ajuda-gps.html",
+    "func": "PARCIAL",
+    "vis": "PARCIAL",
+    "shot": "docs/inventario_telas/screenshots/08-motorista/ajuda-gps.png"
+  },
+  {
+    "mod": "App Motorista",
+    "tela": "Chat",
+    "url": "/motorista/pages/chat.html",
+    "func": "PARCIAL",
+    "vis": "PARCIAL",
+    "shot": "docs/inventario_telas/screenshots/08-motorista/chat.png"
+  },
+  {
+    "mod": "App Motorista",
+    "tela": "Chat standalone",
+    "url": "/motorista/pages/chat-standalone.html",
+    "func": "PRONTA",
+    "vis": "PRONTA",
+    "shot": "docs/inventario_telas/screenshots/08-motorista/chat-standalone.png"
+  },
+  {
+    "mod": "App Motorista",
+    "tela": "SOS",
+    "url": "/motorista/pages/sos.html",
+    "func": "PARCIAL",
+    "vis": "PARCIAL",
+    "shot": "docs/inventario_telas/screenshots/08-motorista/sos.png"
+  },
+  {
+    "mod": "App Motorista",
+    "tela": "Comprovar entrega",
+    "url": "/motorista/pages/comprovar-entrega.html",
+    "func": "PARCIAL",
+    "vis": "PARCIAL",
+    "shot": "docs/inventario_telas/screenshots/08-motorista/comprovar-entrega.png"
+  },
+  {
+    "mod": "App Motorista",
+    "tela": "Perfil",
+    "url": "/motorista/pages/perfil.html",
+    "func": "PRONTA",
+    "vis": "PRONTA",
+    "shot": "docs/inventario_telas/screenshots/08-motorista/perfil.png"
+  },
+  {
+    "mod": "App Motorista",
+    "tela": "Configurações",
+    "url": "/motorista/pages/configuracoes.html",
+    "func": "PRONTA",
+    "vis": "PRONTA",
+    "shot": "docs/inventario_telas/screenshots/08-motorista/configuracoes.png"
+  },
+  {
+    "mod": "App Motorista",
+    "tela": "Config. notificações",
+    "url": "/motorista/pages/configuracoes-notificacoes.html",
+    "func": "PARCIAL",
+    "vis": "PARCIAL",
+    "shot": "docs/inventario_telas/screenshots/08-motorista/configuracoes-notificacoes.png"
+  },
+  {
+    "mod": "App Motorista",
+    "tela": "Oportunidades públicas",
+    "url": "/motorista/pages/oportunidades-publicas.html",
+    "func": "PRONTA",
+    "vis": "PRONTA",
+    "shot": "docs/inventario_telas/screenshots/08-motorista/oportunidades-publicas.png"
+  },
+  {
+    "mod": "App Motorista",
+    "tela": "Eventos",
+    "url": "/motorista/pages/eventos.html",
+    "func": "PARCIAL",
+    "vis": "PARCIAL",
+    "shot": "docs/inventario_telas/screenshots/08-motorista/eventos.png"
+  },
+  {
+    "mod": "App Motorista",
+    "tela": "Diagnóstico",
+    "url": "/motorista/pages/diagnostico.html",
+    "func": "PARCIAL",
+    "vis": "PARCIAL",
+    "shot": "docs/inventario_telas/screenshots/08-motorista/diagnostico.png"
+  }
+]

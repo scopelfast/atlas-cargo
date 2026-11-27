@@ -12,6 +12,7 @@ const bolsao = require('../services/cadastro-bolsao.service');
 const { getSgUser } = require('../utils/audit');
 const alertNotificationService = require('../services/alert-notification-service');
 const { horaMinutoAgora } = require('../services/whatsapp-switch-digital.service');
+const finInad = require('../services/financeiro-inadimplencia.service');
 
 let schemaReady = false;
 const runningDispatches = new Set();
@@ -1006,6 +1007,21 @@ const controller = {
       const idCampanha = Number(req.params.id);
       const pool = await poolPromise;
       await ensureSchema(pool);
+
+      let finWarning = null;
+      try {
+        const gate = await finInad.aplicarGate({ tipo: 'TENANT', tenantId });
+        finWarning = gate.warning;
+      } catch (gateErr) {
+        if (gateErr && gateErr.statusCode === 403) {
+          return res.status(403).json({
+            error: gateErr.message,
+            code: gateErr.code || finInad.CODE_BLOQUEIO,
+          });
+        }
+        console.error('[oport] dispararCampanha fin-inad fail-open:', gateErr);
+      }
+
       const campRs = await pool.query(`SELECT * FROM "OPORT_CAMPANHA" WHERE "TENANT_ID"=$1 AND "ID"=$2`, [tenantId, idCampanha]);
       const campanha = (campRs.rows || [])[0];
       if (!campanha) return res.status(404).json({ error: 'Campanha não encontrada.' });
@@ -1038,16 +1054,21 @@ const controller = {
           console.error('[oport] worker disparo:', e);
         });
       }, 0);
-      res.json({
-        success: true,
-        started: true,
-        status: 'PROCESSANDO',
-        pendentes,
-        intervaloMs,
-        maxPorExecucao,
-        retryMax,
-        somenteCelularValido
-      });
+      res.json(
+        finInad.anexarWarning(
+          {
+            success: true,
+            started: true,
+            status: 'PROCESSANDO',
+            pendentes,
+            intervaloMs,
+            maxPorExecucao,
+            retryMax,
+            somenteCelularValido,
+          },
+          finWarning
+        )
+      );
     } catch (err) {
       console.error('[oport] dispararCampanha:', err);
       res.status(500).json({ error: 'Erro ao disparar campanha.', details: err.message });
@@ -1323,6 +1344,26 @@ const controller = {
 
       const coords = parseCoordsOportunidade(req.body);
       const mudancaParaAceita = oldStatus !== newStatus && newStatus === 'ACEITA';
+      let finWarning = null;
+      if (mudancaParaAceita) {
+        const cdMot = Number(dest.CDCADASTRO_MOTORISTA || dest.cdcadastro_motorista);
+        try {
+          const gate = await finInad.aplicarGate({
+            tipo: 'MOTORISTA',
+            tenantId,
+            cdCadastro: cdMot,
+          });
+          finWarning = gate.warning;
+        } catch (gateErr) {
+          if (gateErr && gateErr.statusCode === 403) {
+            return res.status(403).json({
+              error: gateErr.message,
+              code: gateErr.code || finInad.CODE_BLOQUEIO,
+            });
+          }
+          console.error('[oport] publicoInteresse fin-inad fail-open:', gateErr);
+        }
+      }
       if (mudancaParaAceita && !coords) {
         return res.status(400).json({
           error:
@@ -1506,7 +1547,9 @@ const controller = {
           );
         }
       }
-      res.json({ success: true, unchanged: false, status: newStatus });
+      res.json(
+        finInad.anexarWarning({ success: true, unchanged: false, status: newStatus }, finWarning)
+      );
     } catch (err) {
       console.error('[oport] publicoInteresse:', err);
       res.status(500).json({ error: 'Erro ao registrar interesse.' });

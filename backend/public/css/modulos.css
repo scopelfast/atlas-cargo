@@ -122,6 +122,27 @@ body,
     font-weight: 600;
 }
 
+/* Título de painel — válido em .form-box, .filtros-box e demais shells (Usuários / SaaS / Atlas Pay) */
+h2.form-panel-titulo {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    flex-wrap: wrap;
+    margin: 0 0 20px 0;
+    color: var(--ac-primary, #0d2137);
+    font-size: 20px;
+    font-weight: 600;
+    line-height: 1.3;
+    font-family: 'Plus Jakarta Sans', 'Segoe UI', system-ui, sans-serif;
+}
+
+h2.form-panel-titulo > i.bx {
+    flex-shrink: 0;
+    font-size: 1em;
+    color: inherit;
+    line-height: 1;
+}
+
 .form-box h2.form-panel-titulo {
     display: flex;
     align-items: center;
@@ -133,6 +154,7 @@ body,
     flex-shrink: 0;
 }
 
+h3.form-subtitulo-painel,
 .form-box h3.form-subtitulo-painel {
     display: flex;
     align-items: center;
@@ -140,6 +162,7 @@ body,
     flex-wrap: wrap;
 }
 
+h3.form-subtitulo-painel > i.bx,
 .form-box h3.form-subtitulo-painel > i.bx {
     flex-shrink: 0;
 }

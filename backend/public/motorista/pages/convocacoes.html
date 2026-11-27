@@ -503,6 +503,17 @@
             await window.OfflineDB.salvarCache('convocacoes', convocacoes);
             filtrarPeriodo(periodoAtual);
             registrarAcessoConvocacoesNoServidor(convocacoes);
+            try {
+              const sitRes = await fetch('/api/motorista/situacao-financeira', {
+                headers: { Authorization: `Bearer ${token}` }
+              });
+              if (sitRes.ok) {
+                const sit = await sitRes.json();
+                if (sit.warning && sit.warning.message) {
+                  mostrarToast(sit.warning.message, 'warning');
+                }
+              }
+            } catch (_) {}
             return;
           }
           if (response.status === 503) {
@@ -836,6 +847,13 @@
           });
 
           if (response.ok) {
+            let bodyOk = {};
+            try {
+              bodyOk = await response.json();
+            } catch (_) {}
+            if (bodyOk.warning && bodyOk.warning.message) {
+              mostrarToast(bodyOk.warning.message, 'warning');
+            }
             mostrarToast('Convocação aceita com sucesso!', 'success');
             carregarConvocacoes();
           } else {
@@ -846,7 +864,10 @@
             const msg =
               msgConvocacaoApi(body.errorKey, body.error) ||
               (body.error || 'Erro ao aceitar convocação');
-            mostrarToast(msg, response.status === 422 ? 'warning' : 'error');
+            mostrarToast(
+              msg,
+              response.status === 422 || response.status === 403 ? 'warning' : 'error'
+            );
           }
         } else {
           await window.OfflineDB.adicionarFila('filaAcoes', {

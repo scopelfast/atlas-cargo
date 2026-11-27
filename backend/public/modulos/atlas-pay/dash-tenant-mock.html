@@ -1,0 +1,314 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Atlas Pay · Meu faturamento (mock tenant)</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+  <style>
+    :root {
+      --ink: #0b1220;
+      --muted: #64748b;
+      --line: #e2e8f0;
+      --white: #fff;
+      --sky: #0284c7;
+      --emerald: #059669;
+      --amber: #b45309;
+      --shadow: 0 16px 36px rgba(15, 23, 42, 0.08);
+      --radius: 16px;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: 'Plus Jakarta Sans', system-ui, sans-serif;
+      color: var(--ink);
+      background:
+        radial-gradient(900px 400px at 0% -5%, #d1fae5 0%, transparent 50%),
+        radial-gradient(800px 360px at 100% 0%, #e0f2fe 0%, transparent 48%),
+        #f8fafc;
+      min-height: 100vh;
+    }
+    /* Mesma caixa do mock Atlas / padrão visual Atlas Pay */
+    .wrap { max-width: 1180px; width: 100%; margin: 0 auto; padding: 28px 20px 72px; }
+    .badge {
+      display: inline-flex; font-size: 11px; font-weight: 800; letter-spacing: 0.05em;
+      text-transform: uppercase; color: var(--amber); background: #fef3c7;
+      border: 1px solid #fcd34d; border-radius: 999px; padding: 6px 12px; margin-bottom: 12px;
+    }
+    .who {
+      display: inline-flex; align-items: center; gap: 8px; margin-bottom: 10px;
+      font-size: 13px; font-weight: 700; color: #047857; background: #d1fae5;
+      border-radius: 999px; padding: 6px 12px;
+    }
+    h1 { margin: 0 0 8px; font-size: clamp(1.55rem, 3vw, 2rem); letter-spacing: -0.03em; }
+    .lede { margin: 0 0 22px; color: var(--muted); line-height: 1.55; max-width: 62ch; font-size: 1.02rem; }
+
+    .kpis { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin-bottom: 14px; }
+    @media (max-width: 720px) { .kpis { grid-template-columns: 1fr; } }
+    .kpi {
+      background: var(--white); border: 1px solid var(--line); border-radius: var(--radius);
+      padding: 18px; box-shadow: var(--shadow); position: relative; overflow: hidden;
+    }
+    .kpi::before { content: ''; position: absolute; left: 0; top: 0; bottom: 0; width: 5px; }
+    .kpi.cx::before { background: var(--emerald); }
+    .kpi.uso::before { background: var(--sky); }
+    .kpi .tag { font-size: 11px; font-weight: 800; letter-spacing: 0.05em; text-transform: uppercase; margin-bottom: 4px; }
+    .kpi.cx .tag { color: var(--emerald); }
+    .kpi.uso .tag { color: var(--sky); }
+    .kpi h2 { margin: 0 0 4px; font-size: 1.05rem; }
+    .kpi p { margin: 0 0 12px; font-size: 13px; color: var(--muted); }
+    .kpi .big { font-size: 1.9rem; font-weight: 800; letter-spacing: -0.03em; }
+    .mini-row { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 8px; margin-top: 12px; }
+    .mini { background: #f8fafc; border: 1px solid var(--line); border-radius: 10px; padding: 8px; }
+    .mini strong { display: block; font-size: 10px; text-transform: uppercase; letter-spacing: 0.04em; color: var(--muted); }
+    .mini span { font-weight: 700; font-size: 14px; }
+
+    .panel {
+      background: var(--white); border: 1px solid var(--line); border-radius: var(--radius);
+      box-shadow: var(--shadow); padding: 18px 20px; margin-bottom: 14px;
+    }
+    .panel-head {
+      display: flex; flex-wrap: wrap; justify-content: space-between; gap: 8px;
+      align-items: baseline; margin-bottom: 12px;
+    }
+    .panel-head h3 { margin: 0; font-size: 1.05rem; }
+    .panel-head span { font-size: 12px; color: var(--muted); }
+
+    .split { display: grid; grid-template-columns: 1.15fr 0.85fr; gap: 14px; }
+    @media (max-width: 860px) { .split { grid-template-columns: 1fr; } }
+
+    table { width: 100%; border-collapse: collapse; font-size: 13px; }
+    th {
+      text-align: left; font-size: 11px; text-transform: uppercase; letter-spacing: 0.04em;
+      color: var(--muted); padding: 8px 6px; border-bottom: 1px solid var(--line);
+    }
+    td { padding: 11px 6px; border-bottom: 1px solid #f1f5f9; vertical-align: middle; }
+    tr:last-child td { border-bottom: 0; }
+    .num { text-align: right; font-variant-numeric: tabular-nums; font-weight: 700; }
+    .rank {
+      width: 28px; height: 28px; border-radius: 8px; display: inline-flex;
+      align-items: center; justify-content: center; font-weight: 800; font-size: 12px;
+      background: #ecfdf5; color: #047857;
+    }
+    .rank.gold { background: #fef3c7; color: #92400e; }
+    .rank.silver { background: #e2e8f0; color: #334155; }
+    .rank.bronze { background: #ffedd5; color: #9a3412; }
+    .name { font-weight: 700; }
+    .sub { display: block; font-size: 11px; color: var(--muted); font-weight: 500; margin-top: 2px; }
+    .pill {
+      display: inline-flex; border-radius: 999px; padding: 3px 8px; font-size: 11px; font-weight: 700;
+    }
+    .pill.ok { background: #d1fae5; color: #047857; }
+    .pill.warn { background: #fef3c7; color: #b45309; }
+    .btn {
+      border: 1px solid var(--line); background: #f8fafc; border-radius: 8px;
+      padding: 6px 10px; font-size: 12px; font-weight: 700; color: #334155; cursor: default;
+    }
+
+    .chart {
+      height: 160px; display: grid; grid-template-columns: repeat(6, 1fr); gap: 8px;
+      align-items: end; border-bottom: 1px solid var(--line);
+    }
+    .col { display: flex; flex-direction: column; justify-content: flex-end; align-items: center; gap: 6px; height: 100%; }
+    .bars { display: flex; align-items: flex-end; gap: 3px; width: 100%; height: 120px; }
+    .bar { flex: 1; border-radius: 6px 6px 2px 2px; }
+    .bar.cx { background: linear-gradient(180deg, #34d399, #059669); }
+    .bar.uso { background: linear-gradient(180deg, #38bdf8, #0284c7); }
+    .col label { font-size: 10px; font-weight: 600; color: var(--muted); }
+    .legend { margin-top: 8px; font-size: 12px; font-weight: 600; color: var(--muted); display: flex; gap: 14px; }
+    .legend i { display: inline-block; width: 9px; height: 9px; border-radius: 2px; margin-right: 5px; }
+
+    .note-box {
+      border: 1px dashed #cbd5e1; border-radius: 12px; padding: 14px; background: #f8fafc;
+      font-size: 13px; color: var(--muted); line-height: 1.45;
+    }
+    .note-box strong { color: var(--ink); }
+
+    footer.note {
+      margin-top: 16px; padding: 14px 16px; border-radius: 12px;
+      background: #0f172a; color: #cbd5e1; font-size: 13px; line-height: 1.5;
+    }
+    footer.note strong { color: #fff; }
+    a.back { color: #7dd3fc; }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <div class="badge">Mock tenant · não ligado à API</div>
+    <div class="who">Login exemplo: CLEVERSON SCOPEL · cleverson-scopel</div>
+    <h1>Meu faturamento</h1>
+    <p class="lede">
+      O que <strong>eu recebo</strong> dos motoristas (conexão) e o que <strong>devo / paguei</strong> à Atlas (uso).
+      Sem fechar fatura SaaS daqui — só consulta. O mesmo layout vale para o <strong>default</strong> quando a Atlas opera a oferta.
+    </p>
+
+    <section class="kpis">
+      <article class="kpi cx">
+        <div class="tag">A · Eu recebo</div>
+        <h2>Conexão · motorista → eu</h2>
+        <p>Cobrança na confirmação da torre.</p>
+        <div class="big">R$ 100,00</div>
+        <div class="mini-row">
+          <div class="mini"><strong>Aberto</strong><span>R$ 0,00</span></div>
+          <div class="mini"><strong>Pago</strong><span>R$ 100,00</span></div>
+          <div class="mini"><strong>Qtd</strong><span>1</span></div>
+        </div>
+      </article>
+      <article class="kpi uso">
+        <div class="tag">B · Eu pago à Atlas</div>
+        <h2>Uso · eu → Atlas</h2>
+        <p>Fechamento mensal · só consulta neste login.</p>
+        <div class="big">R$ 0,00</div>
+        <div class="mini-row">
+          <div class="mini"><strong>Aberto</strong><span>R$ 0,00</span></div>
+          <div class="mini"><strong>Pago</strong><span>R$ 715,54</span></div>
+          <div class="mini"><strong>Mês</strong><span>nov/26</span></div>
+        </div>
+      </article>
+    </section>
+
+    <section class="panel">
+      <div class="panel-head">
+        <h3>Evolução (ilustrativa)</h3>
+        <span>Conexão que eu recebi × uso que paguei</span>
+      </div>
+      <div class="chart" aria-hidden="true">
+        <div class="col"><div class="bars"><div class="bar cx" style="height:20%"></div><div class="bar uso" style="height:40%"></div></div><label>Jun</label></div>
+        <div class="col"><div class="bars"><div class="bar cx" style="height:35%"></div><div class="bar uso" style="height:48%"></div></div><label>Jul</label></div>
+        <div class="col"><div class="bars"><div class="bar cx" style="height:42%"></div><div class="bar uso" style="height:55%"></div></div><label>Ago</label></div>
+        <div class="col"><div class="bars"><div class="bar cx" style="height:50%"></div><div class="bar uso" style="height:62%"></div></div><label>Set</label></div>
+        <div class="col"><div class="bars"><div class="bar cx" style="height:58%"></div><div class="bar uso" style="height:70%"></div></div><label>Out</label></div>
+        <div class="col"><div class="bars"><div class="bar cx" style="height:28%"></div><div class="bar uso" style="height:95%"></div></div><label>Nov</label></div>
+      </div>
+      <div class="legend">
+        <span><i style="background:#059669"></i>Conexão recebida</span>
+        <span><i style="background:#0284c7"></i>Uso pago à Atlas</span>
+      </div>
+    </section>
+
+    <div class="split">
+      <section class="panel">
+        <div class="panel-head">
+          <h3>Top motoristas · quem mais pagou</h3>
+          <span>Para campanha / próximo caso · HML ilustrado + #171 real</span>
+        </div>
+        <table>
+          <thead>
+            <tr>
+              <th>#</th>
+              <th>Motorista</th>
+              <th class="num">Pago</th>
+              <th class="num">Aberto</th>
+              <th>Viagens</th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td><span class="rank gold">1</span></td>
+              <td>
+                <span class="name">Cadastro 4</span>
+                <span class="sub">#171 · ciclo confirmado · R$ 100,00</span>
+              </td>
+              <td class="num">R$ 100,00</td>
+              <td class="num">R$ 0,00</td>
+              <td>1</td>
+              <td><button type="button" class="btn">Ver</button></td>
+            </tr>
+            <tr>
+              <td><span class="rank silver">2</span></td>
+              <td>
+                <span class="name">Exemplo · João Silva</span>
+                <span class="sub">ilustrativo · ainda sem dado no HML</span>
+              </td>
+              <td class="num">R$ 0,00</td>
+              <td class="num">R$ 0,00</td>
+              <td>—</td>
+              <td><button type="button" class="btn">Ver</button></td>
+            </tr>
+            <tr>
+              <td><span class="rank bronze">3</span></td>
+              <td>
+                <span class="name">Exemplo · Pedro Costa</span>
+                <span class="sub">ilustrativo</span>
+              </td>
+              <td class="num">R$ 0,00</td>
+              <td class="num">R$ 0,00</td>
+              <td>—</td>
+              <td><button type="button" class="btn">Ver</button></td>
+            </tr>
+          </tbody>
+        </table>
+        <p class="note-box" style="margin-top:12px">
+          <strong>Por que importa:</strong> top pagadores = prioridade na próxima convocação / campanha.
+          No <strong>default</strong>, a mesma lista mostra quem pagou à Atlas (#174 = cadastro 2 · R$ 218,22 no topo).
+        </p>
+      </section>
+
+      <section class="panel">
+        <div class="panel-head">
+          <h3>Minha fatura Atlas</h3>
+          <span>Somente leitura</span>
+        </div>
+        <div class="note-box" style="margin-bottom:12px">
+          <strong>novembro/2026 · Paga</strong><br />
+          R$ 715,54 · fixo 666,66 + % 41,11 + anúncio 7,77<br />
+          <span class="pill ok" style="margin-top:8px">Sem aberto</span>
+        </div>
+        <div class="note-box">
+          <strong>Contrato vigente v6</strong><br />
+          A · Conexão: o que eu cobro do motorista<br />
+          B · Uso: tabela Atlas (só consulta)
+        </div>
+        <p style="margin:14px 0 0;font-size:12px;color:var(--muted);line-height:1.4">
+          Atalhos reais no produto: Cobranças · Fatura de uso · Contratos.
+          Sem botões Calcular / Gerar neste login.
+        </p>
+      </section>
+    </div>
+
+    <section class="panel">
+      <div class="panel-head">
+        <h3>Mesmo dash no default</h3>
+        <span>Quando você opera a oferta</span>
+      </div>
+      <table>
+        <thead>
+          <tr>
+            <th>#</th>
+            <th>Motorista → Atlas (default)</th>
+            <th class="num">Valor</th>
+            <th>Status</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><span class="rank gold">1</span></td>
+            <td>
+              <span class="name">Cadastro 2</span>
+              <span class="sub">viagem 2 · convocação 5 · #174</span>
+            </td>
+            <td class="num">R$ 218,22</td>
+            <td><span class="pill ok">Paga</span></td>
+          </tr>
+        </tbody>
+      </table>
+      <p class="note-box" style="margin-top:12px">
+        No default: KPI A = conexão que a Atlas recebeu; KPI B some ou fica “não se aplica”
+        (Atlas não se fatura uso). Top motoristas continua — base da próxima campanha da torre padrão.
+      </p>
+    </section>
+
+    <footer class="note">
+      <strong>Mock tenant</strong> — proposta de aba “Meu faturamento” (ou bloco na Visão geral).
+      Top motoristas = agregação de <code>FIN_COBRANCA</code> CONEXAO por <code>PAGADOR_CDCADASTRO</code>.
+      <br />
+      <a class="back" href="index.html">Atlas Pay</a>
+      ·
+      <a class="back" href="dash-faturamento-mock.html">Mock Atlas (v2)</a>
+    </footer>
+  </div>
+</body>
+</html>

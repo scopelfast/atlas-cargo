@@ -2807,11 +2807,16 @@
         DTPREVINICIO: dataInicio,
         DTPREVFINAL: dataFim,
         IDROTEIRO: document.getElementById('viagemRoteiro')?.value || null,
-        DISTANCIAKM: document.getElementById('viagemDistancia')?.value || null,
-        VLFRETE: document.getElementById('viagemFrete')?.value ? parseFloat(document.getElementById('viagemFrete').value) : null,
+        DISTANCIAKM: (() => {
+          const raw = document.getElementById('viagemDistancia')?.value;
+          if (raw == null || String(raw).trim() === '') return null;
+          const n = parseFloat(String(raw).trim().replace(/\s/g, '').replace(',', '.'));
+          return Number.isFinite(n) ? n : null;
+        })(),
+        VLFRETE: document.getElementById('viagemFrete')?.value ? parseFloat(String(document.getElementById('viagemFrete').value).replace(',', '.')) : null,
         MOEDA: document.getElementById('viagemMoeda')?.value || 'BRL',
-        PESO: document.getElementById('viagemPeso')?.value ? parseFloat(document.getElementById('viagemPeso').value) : null,
-        CUBAGEM: document.getElementById('viagemCubagem')?.value ? parseFloat(document.getElementById('viagemCubagem').value) : null,
+        PESO: document.getElementById('viagemPeso')?.value ? parseFloat(String(document.getElementById('viagemPeso').value).replace(',', '.')) : null,
+        CUBAGEM: document.getElementById('viagemCubagem')?.value ? parseFloat(String(document.getElementById('viagemCubagem').value).replace(',', '.')) : null,
         TIPO_SALDO: (document.getElementById('viagemTipoSaldo')?.value || '') || null,
         SALDO_EMBARQUES: document.getElementById('viagemTipoSaldo')?.value === 'EMBARQUES'
           ? parseInt(document.getElementById('viagemLoteQtd')?.value, 10)
@@ -9173,15 +9178,26 @@
       showMessage('Informe o motivo da desistência.', 'error');
       return;
     }
+    const origemPrompt = window.prompt(
+      'Origem da desistência: digite TORRE (operação da torre) ou MOTORISTA (motorista desistiu).',
+      'TORRE'
+    );
+    if (origemPrompt == null) return;
+    const origemDesistencia =
+      String(origemPrompt).trim().toUpperCase() === 'MOTORISTA' ? 'MOTORISTA' : 'TORRE';
     try {
       const user = JSON.parse(localStorage.getItem('user') || '{}');
       const response = await fetch(`/api/convocacoes/${idConvNum}/desistir-lote`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'user-login': user.login || 'SYSTEM'
+          'user-login': user.login || 'SYSTEM',
+          'Authorization': `Bearer ${localStorage.getItem('token') || ''}`
         },
-        body: JSON.stringify({ motivo: String(motivo).trim() })
+        body: JSON.stringify({
+          motivo: String(motivo).trim(),
+          origemDesistencia
+        })
       });
       const data = await response.json().catch(() => ({}));
       if (!response.ok) {
@@ -9362,6 +9378,10 @@
         try {
           const error = await response.json();
           errorMessage = error.error || error.message || errorMessage;
+          if (error.code === 'FIN_INADIMPLENTE_BLOQUEIO') {
+            showMessage(errorMessage, 'error');
+            return;
+          }
           if (error.details) {
             errorMessage += `: ${error.details}`;
           }
@@ -9378,6 +9398,10 @@
       } catch (e) {
         console.error('Erro ao parsear resposta:', e);
         throw new Error('Erro ao processar resposta do servidor');
+      }
+
+      if (result.warning && result.warning.message) {
+        showMessage(result.warning.message, 'warning');
       }
       
       // Sucesso da confirmação + canal da mensagem: Switch Digital primeiro; wa.me só se a API do Switch falhar.
@@ -9800,6 +9824,16 @@
               Por favor, selecione um motivo.
             </p>
           </div>
+          <div style="margin-top: 16px;">
+            <label for="selectOrigemDesistencia" class="convocacao-modal-reativar-label" style="display: block; margin-bottom: 10px; font-weight: 600;">
+              <i class="bx bx-user" style="font-size: 1em; vertical-align: middle;"></i> Origem da desistência: *
+            </label>
+            <select id="selectOrigemDesistencia" class="convocacao-modal-select" style="width: 100%; padding: 12px; border: 2px solid #ddd; border-radius: 8px; font-size: 16px; background: #fff; color: #222;">
+              <option value="TORRE" selected>Torre (operação da empresa)</option>
+              <option value="MOTORISTA">Motorista (desistiu da carga)</option>
+            </select>
+            <p style="font-size: 13px; color: #64748b; margin-top: 6px;">Registra quem motivou o cancelamento da cobrança Atlas Pay. A API só aceita TORRE ou MOTORISTA.</p>
+          </div>
         </div>
       `;
 
@@ -9823,6 +9857,11 @@
       }
 
       const motivoReabertura = selectMotivo.value;
+      const selectOrigem = document.getElementById('selectOrigemDesistencia');
+      const origemDesistencia =
+        selectOrigem && String(selectOrigem.value || '').toUpperCase() === 'MOTORISTA'
+          ? 'MOTORISTA'
+          : 'TORRE';
 
       // Obter usuário logado
       const user = JSON.parse(localStorage.getItem('user') || '{}');
@@ -9837,7 +9876,7 @@
           'user-login': userLogin || '',
           'Authorization': `Bearer ${localStorage.getItem('token') || ''}`
         },
-        body: JSON.stringify({ motivoReabertura })
+        body: JSON.stringify({ motivoReabertura, origemDesistencia })
       });
 
       if (!response.ok) {

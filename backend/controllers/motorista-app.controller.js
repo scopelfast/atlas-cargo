@@ -49,6 +49,7 @@ const alertService = require('../services/alert-service');
 const { getDefaultTenantId } = require('../middleware/tenant.middleware');
 const { enviarUmaMensagemSwitchDigital } = require('../services/whatsapp-switch-digital.service');
 const { tenantIdForRequest } = require('../utils/tenant-context');
+const finInad = require('../services/financeiro-inadimplencia.service');
 const bolsao = require('../services/cadastro-bolsao.service');
 const recuperacaoLog = require('../services/recuperacao-senha-log.service');
 const { assertViagemTenantAccess } = require('../utils/viagem-tenant-access');
@@ -1882,6 +1883,36 @@ const motoristaAppController = {
   },
 
   // ==========================================
+  // SITUAÇÃO FINANCEIRA (Fase 4 — só leitura)
+  // ==========================================
+  situacaoFinanceira: async (req, res) => {
+    try {
+      const idMot = getMotoristaCadastroId(req);
+      if (!Number.isFinite(idMot)) {
+        return res.status(401).json({ error: 'Sessão inválida.', errorKey: 'login.tokenInvalido' });
+      }
+      const tid = tenantIdForRequest(req);
+      const situacao = await finInad.avaliarPagador({
+        tipo: 'MOTORISTA',
+        tenantId: tid,
+        cdCadastro: idMot,
+      });
+      res.json({
+        success: true,
+        situacao,
+        warning: finInad.warningFromAvaliacao(situacao),
+      });
+    } catch (err) {
+      console.error('[situacaoFinanceira] fail-open:', err);
+      res.json({
+        success: true,
+        situacao: { modo: 'LIBERADO', failOpen: true },
+        warning: null,
+      });
+    }
+  },
+
+  // ==========================================
   // ACEITAR CONVOCAÇÃO
   // ==========================================
   aceitarConvocacao: async (req, res) => {
@@ -1895,6 +1926,25 @@ const motoristaAppController = {
         return res.status(401).json({ error: 'Sessão inválida.', errorKey: 'login.tokenInvalido' });
       }
       const tid = tenantIdForRequest(req);
+
+      let finWarning = null;
+      try {
+        const gate = await finInad.aplicarGate({
+          tipo: 'MOTORISTA',
+          tenantId: tid,
+          cdCadastro: idMot,
+        });
+        finWarning = gate.warning;
+      } catch (gateErr) {
+        if (gateErr && gateErr.statusCode === 403) {
+          return res.status(403).json({
+            error: gateErr.message,
+            code: gateErr.code || finInad.CODE_BLOQUEIO,
+            errorKey: 'financeiro.inadimplenteBloqueio',
+          });
+        }
+        console.error('[aceitarConvocacao] fin-inad fail-open:', gateErr);
+      }
 
       let placasObrigatorias = false;
       let placasEsperadasGate = '';
@@ -2017,7 +2067,9 @@ const motoristaAppController = {
         return res.status(409).json({ error: 'Não foi possível aceitar esta convocação agora. Atualize e tente novamente.' });
       }
 
-      res.json({ success: true, message: 'Convocação aceita com sucesso!' });
+      res.json(
+        finInad.anexarWarning({ success: true, message: 'Convocação aceita com sucesso!' }, finWarning)
+      );
     } catch (err) {
       console.error('Erro ao aceitar convocação:', err);
       res.status(500).json({ error: 'Erro ao aceitar convocação.' });
@@ -2144,7 +2196,7 @@ const motoristaAppController = {
             .query(`
               SELECT upper(TRIM(COALESCE(cg.[RZSOCIAL], ''))) AS [NM]
               FROM [dbo].[CONVOCACAO] c
-              INNER JOIN [dbo].[CADASTROGERAL] cg ON c.[CDCADASTRO_MOTORISTA] = cg.[CDCADASTRO] AND cg.[TENANT_ID] = c.[TENANT_ID]
+              INNER JOIN [dbo].[CADASTROGERAL] cg ON c.[CDCADASTRO_MOTORISTA] = cg.[CDCADASTRO]
               WHERE c.[IDCONVOCACAO] = @id AND c.[CDCADASTRO_MOTORISTA] = @mot AND c.[TENANT_ID] = @tenantId
             `);
           const rowNm = nm.recordset && nm.recordset[0];
@@ -2438,6 +2490,26 @@ const motoristaAppController = {
       if (!Number.isFinite(idMotNum)) {
         return res.status(401).json({ error: 'Sessão inválida.', errorKey: 'login.tokenInvalido' });
       }
+      const tidCarga = tenantIdForRequest(req);
+
+      let finWarning = null;
+      try {
+        const gate = await finInad.aplicarGate({
+          tipo: 'MOTORISTA',
+          tenantId: tidCarga,
+          cdCadastro: idMotNum,
+        });
+        finWarning = gate.warning;
+      } catch (gateErr) {
+        if (gateErr && gateErr.statusCode === 403) {
+          return res.status(403).json({
+            error: gateErr.message,
+            code: gateErr.code || finInad.CODE_BLOQUEIO,
+            errorKey: 'financeiro.inadimplenteBloqueio',
+          });
+        }
+        console.error('[aceitarCarga] fin-inad fail-open:', gateErr);
+      }
 
       // Buscar dados do motorista e da viagem (classe de frota)
       const [motorista, viagem] = await Promise.all([
@@ -2445,7 +2517,7 @@ const motoristaAppController = {
           .query(`SELECT NRCELULAR FROM [dbo].[CADASTROGERAL] WHERE CDCADASTRO = @id`),
         pool.request()
           .input('idviagem', sql.Decimal(15, 0), parseFloat(idviagem))
-          .input('tid', sql.NVarChar(64), tenantIdForRequest(req))
+          .input('tid', sql.NVarChar(64), tidCarga)
           .query(`SELECT [CDCLASSEFROTA] FROM [dbo].[VIAGEMMESTRE] WHERE [IDVIAGEM] = @idviagem AND [TENANT_ID] = @tid`)
       ]);
 
@@ -2483,7 +2555,7 @@ const motoristaAppController = {
         .input('celular', sql.Decimal(15, 0), celular)
         .input('latitude', sql.Float, latitude || null)
         .input('longitude', sql.Float, longitude || null)
-        .input('TENANT_ID', tenantIdForRequest(req))
+        .input('TENANT_ID', tidCarga)
         .query(`
           INSERT INTO [dbo].[CONVOCACAO] (
             IDVIAGEM, CDCADASTRO_MOTORISTA, STATUS, DHCONVOCACAO,
@@ -2498,7 +2570,7 @@ const motoristaAppController = {
           )
         `);
 
-      res.json({ success: true, message: 'Carga aceita com sucesso!' });
+      res.json(finInad.anexarWarning({ success: true, message: 'Carga aceita com sucesso!' }, finWarning));
     } catch (err) {
       console.error('Erro ao aceitar carga:', err);
       res.status(500).json({ error: 'Erro ao aceitar carga.' });
@@ -4614,12 +4686,12 @@ const motoristaAppController = {
   }
 };
 
-// Configurações públicas do app (telefone suporte, etc.) - sem auth
+// Configurações públicas do app — sem auth. Não expõe número de destino Atlas.
 motoristaAppController.config = (req, res) => {
   try {
-    const telefoneSuporte = (process.env.TELEFONE_SUPORTE || '').trim();
     res.json({
-      telefoneSuporte,
+      telefoneSuporte: '',
+      suporteViaApi: true,
       nomeApp: process.env.NOME_APP_MOTORISTA || 'Atlas Cargo'
     });
   } catch (err) {

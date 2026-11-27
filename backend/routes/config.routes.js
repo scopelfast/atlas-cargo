@@ -705,6 +705,7 @@ router.get('/configuracoes/switch-digital', async (req, res) => {
   try {
     const pool = await poolPromise;
     const tid = tenantIdForRequest(req);
+    const tidDefault = getDefaultTenantId();
     const result = await pool
       .request()
       .input('tenantId', sqlCfg.NVarChar(64), tid)
@@ -717,6 +718,16 @@ router.get('/configuracoes/switch-digital', async (req, res) => {
         'switch_digital_send_signature', 'switch_digital_close_ticket'
       )
     `);
+
+    // Destino Atlas (suporte/apoio) fica sempre no tenant padrão
+    const destResult = await pool
+      .request()
+      .input('tenantId', sqlCfg.NVarChar(64), tidDefault)
+      .input('chave', sqlCfg.NVarChar(100), 'whatsapp_destino_suporte')
+      .query(`
+      SELECT "VALOR" FROM "CONFIGURACAO"
+      WHERE "TENANT_ID" = @tenantId AND "CHAVE" = @chave
+    `);
     
     const rows = result.recordset || [];
     const config = {
@@ -727,7 +738,8 @@ router.get('/configuracoes/switch-digital', async (req, res) => {
       switchUserId: '',
       switchQueueId: '',
       switchSendSignature: 'S',
-      switchCloseTicket: 'S'
+      switchCloseTicket: 'S',
+      whatsappDestinoSuporte: ''
     };
 
     rows.forEach(r => {
@@ -743,6 +755,10 @@ router.get('/configuracoes/switch-digital', async (req, res) => {
       if (chave === 'switch_digital_close_ticket') config.switchCloseTicket = valor;
     });
 
+    const destRow = (destResult.recordset || [])[0];
+    const destDb = destRow && (destRow.VALOR != null ? destRow.VALOR : destRow.valor);
+    config.whatsappDestinoSuporte = String(destDb || process.env.TELEFONE_SUPORTE || '').trim();
+
     res.json(config);
   } catch (err) {
     console.error('Erro ao buscar configuracoes da Switch Digital:', err);
@@ -753,30 +769,44 @@ router.get('/configuracoes/switch-digital', async (req, res) => {
 // PUT /api/configuracoes/switch-digital - Atualiza configurações da Switch Digital
 router.put('/configuracoes/switch-digital', towerAuthAndTenant, async (req, res) => {
   try {
-    const { switchEndpoint, switchMetodo, switchContentType, switchToken, switchUserId, switchQueueId, switchSendSignature, switchCloseTicket } = req.body || {};
+    const {
+      switchEndpoint, switchMetodo, switchContentType, switchToken, switchUserId, switchQueueId,
+      switchSendSignature, switchCloseTicket, whatsappDestinoSuporte
+    } = req.body || {};
     const pool = await poolPromise;
     const tid = tenantIdForRequest(req);
+    const tidDefault = getDefaultTenantId();
 
-    const upsert = async (chave, valor, desc) => {
+    const upsert = async (tenantAlvo, chave, valor, desc) => {
       if (valor == null) return;
       const v = String(valor).trim();
       await pool
         .request()
-        .input('tenantId', sqlCfg.NVarChar(64), tid)
+        .input('tenantId', sqlCfg.NVarChar(64), tenantAlvo)
         .input('chave', chave)
         .input('valor', v)
         .input('desc', desc)
         .query(UPSERT_CONFIG_SQL);
     };
 
-    await upsert('switch_digital_endpoint', switchEndpoint, 'Endpoint da API Switch Digital');
-    await upsert('switch_digital_metodo', switchMetodo, 'Método HTTP (POST, GET)');
-    await upsert('switch_digital_content_type', switchContentType, 'Content-Type da API');
-    await upsert('switch_digital_token', switchToken, 'Token Bearer para API Switch Digital');
-    await upsert('switch_digital_user_id', switchUserId, 'ID de Usuário padrão para Switch Digital');
-    await upsert('switch_digital_queue_id', switchQueueId, 'ID da Fila padrão para Switch Digital');
-    await upsert('switch_digital_send_signature', switchSendSignature, 'Assinar mensagem Switch Digital (S/N)');
-    await upsert('switch_digital_close_ticket', switchCloseTicket, 'Encerrar ticket Switch Digital (S/N)');
+    await upsert(tid, 'switch_digital_endpoint', switchEndpoint, 'Endpoint da API Switch Digital');
+    await upsert(tid, 'switch_digital_metodo', switchMetodo, 'Método HTTP (POST, GET)');
+    await upsert(tid, 'switch_digital_content_type', switchContentType, 'Content-Type da API');
+    await upsert(tid, 'switch_digital_token', switchToken, 'Token Bearer para API Switch Digital');
+    await upsert(tid, 'switch_digital_user_id', switchUserId, 'ID de Usuário padrão para Switch Digital');
+    await upsert(tid, 'switch_digital_queue_id', switchQueueId, 'ID da Fila padrão para Switch Digital');
+    await upsert(tid, 'switch_digital_send_signature', switchSendSignature, 'Assinar mensagem Switch Digital (S/N)');
+    await upsert(tid, 'switch_digital_close_ticket', switchCloseTicket, 'Encerrar ticket Switch Digital (S/N)');
+
+    // Destino Atlas: só o tenant padrão grava; sempre em TENANT_ID = default
+    if (whatsappDestinoSuporte != null && tid === tidDefault) {
+      await upsert(
+        tidDefault,
+        'whatsapp_destino_suporte',
+        whatsappDestinoSuporte,
+        'Celular destino Atlas para Suporte e Pedido de apoio (DDI+DDD)'
+      );
+    }
 
     res.json({ success: true, message: 'Configurações salvas com sucesso!' });
   } catch (err) {

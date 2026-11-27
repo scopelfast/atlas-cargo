@@ -744,8 +744,25 @@ function ensurePanelSubtitleIcons(root) {
   const headings = scope.querySelectorAll('.tab-content h3');
   headings.forEach((h3) => {
     if (!h3 || h3.closest('.modal, .modal-content, .swal2-popup')) return;
-    if (h3.closest('.form-dados-card-header')) return;
+    if (h3.closest('.form-dados-card-header, .config-card-header')) {
+      // Remove ícone injetado por engano (card já tem <i> irmão do h3)
+      h3.querySelectorAll(':scope > i.bx').forEach((el) => el.remove());
+      return;
+    }
+    // Ícone já no próprio h3 OU irmão imediato (padrão config-card-header: <i> + <h3>)
     if (h3.querySelector(':scope > i.bx')) {
+      h3.classList.add('form-subtitulo-painel');
+      return;
+    }
+    const prev = h3.previousElementSibling;
+    if (prev && prev.matches && prev.matches('i.bx')) {
+      h3.querySelectorAll(':scope > i.bx').forEach((el) => el.remove());
+      h3.classList.add('form-subtitulo-painel');
+      return;
+    }
+    const parentIcon = h3.parentElement && h3.parentElement.querySelector(':scope > i.bx');
+    if (parentIcon && parentIcon !== h3.querySelector(':scope > i.bx')) {
+      h3.querySelectorAll(':scope > i.bx').forEach((el) => el.remove());
       h3.classList.add('form-subtitulo-painel');
       return;
     }

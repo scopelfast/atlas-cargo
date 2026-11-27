@@ -38,6 +38,7 @@ body {
   color: var(--text);
   transition: background-color 0.3s ease, color 0.3s ease;
   line-height: 1.5;
+  overflow-x: hidden;
 }
 
 /* Seletor de módulo de produto (multi-produto / planos) */
@@ -527,15 +528,15 @@ body {
 }
 
 .main {
-  flex: 1;
+  flex: 1 1 0;
   margin-left: 260px;
   padding: 24px;
   background: var(--bg-secondary);
   transition: margin-left 0.3s ease;
   min-height: 100vh;
-  width: 100%;
-  max-width: none;
+  /* sem width:100% — senão soma com margin-left e gera barra horizontal */
   min-width: 0;
+  box-sizing: border-box;
 }
 
 .main.sidebar-collapsed {

@@ -193,7 +193,7 @@
       // Em desenvolvimento: usar timestamp atual (sempre atualizado)
       // Em produção: usar versão fixa (atualizada a cada deploy)
       const isDev = isLocal;
-      const cacheVersion = isDev ? Date.now() : '20261125sair';
+      const cacheVersion = isDev ? Date.now() : '20261127noHScroll2';
       
       // Armazenar globalmente para uso em scripts
       window.__CACHE_VERSION__ = cacheVersion;
@@ -203,6 +203,7 @@
       createLink(`/css/dashboard.css?v=${cacheVersion}`);
       createLink(`/css/dashboard-adminlte.css?v=${cacheVersion}`);
       createLink(`/css/dark-mode.css?v=${cacheVersion}`);
+      createLink(`/css/apoio-whatsapp.css?v=${cacheVersion}`);
       createLink(`/css/face-deskcomm.css?v=${cacheVersion}`, 'face-deskcomm');
       
       // Corrigir favicon
@@ -404,6 +405,9 @@
         <button type="button" class="header-icon-btn" id="themeToggleBtn" title="Alternar modo escuro" aria-label="Modo escuro">
           <i class='bx bx-moon' id="themeToggleIcon"></i>
         </button>
+        <button type="button" class="header-icon-btn" id="headerBtnAjuda" title="Suporte e pedido de apoio" aria-label="Ajuda Atlas">
+          <i class='bx bx-help-circle'></i>
+        </button>
         <div class="header-shortcuts" id="headerShortcuts" style="display: none; align-items: center; gap: 6px;">
           <button type="button" class="header-icon-btn" id="headerBtnChat" title="Chat" style="display: none;" aria-label="Chat">
             <i class='bx bx-message-dots'></i>
@@ -568,7 +572,8 @@
         `/js/log-helper.js?v=${cacheVer}`,
         `/js/i18n-web.js?v=${cacheVer}`,
         `/js/consulta-documento.js?v=${cacheVer}`,
-        `/js/dashboard.js?v=${cacheVer}`
+        `/js/dashboard.js?v=${cacheVer}`,
+        `/js/apoio-whatsapp.js?v=${cacheVer}`
       ];
       
       let index = 0;

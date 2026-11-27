@@ -374,7 +374,14 @@
       body: JSON.stringify({ intervaloMs, maxPorExecucao, retryMax, somenteCelularValido })
     });
     const d = await parseJsonResponse(r);
-    if (!r.ok) throw erroApi(r, d, tco('erroDisparar'));
+    if (!r.ok) {
+      if (d && d.code === 'FIN_INADIMPLENTE_BLOQUEIO') {
+        msg(d.error || tco('erroDisparar'), 'error');
+        return;
+      }
+      throw erroApi(r, d, tco('erroDisparar'));
+    }
+    if (d.warning && d.warning.message) msg(d.warning.message, 'warning');
     msg(twReplace('disparoIniciado', { n: d.pendentes != null ? d.pendentes : '' }), 'success');
     await loadCampanhas();
     await refreshSwitchHealthOport();

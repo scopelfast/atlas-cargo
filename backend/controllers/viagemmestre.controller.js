@@ -13,6 +13,8 @@ const { getDefaultTenantId } = require('../middleware/tenant.middleware');
 const convocacaoMsgTpl = require('../services/convocacao-mensagem-template.service');
 const loteSaldo = require('../services/viagem-lote-saldo.service');
 const { getContexto } = require('../services/contexto.service');
+const financeiroCobranca = require('../services/financeiro-cobranca.service');
+const finInad = require('../services/financeiro-inadimplencia.service');
 
 // Constantes
 const SITUACAO_VIAGEM = {
@@ -56,6 +58,18 @@ function chaveCriacaoViagem(tenant, usuario, body) {
     b.SALDO_EMBARQUES || '',
     b.SALDO_TON || ''
   ].join('|');
+}
+
+/** Aceita número BR (1.234,56 / 497,0300) ou EN (1234.56). */
+function parseNumeroOpcional(val) {
+  if (val == null || val === '') return null;
+  if (typeof val === 'number') return Number.isFinite(val) ? val : null;
+  let s = String(val).trim().replace(/\s/g, '');
+  if (!s) return null;
+  if (/,/.test(s) && /\./.test(s)) s = s.replace(/\./g, '').replace(',', '.');
+  else if (/,/.test(s)) s = s.replace(',', '.');
+  const n = Number(s);
+  return Number.isFinite(n) ? n : null;
 }
 
 /** Lote opcional. Sem tipo, a viagem continua comum (um aceite confirma). */
@@ -688,6 +702,14 @@ const viagemController = {
       const sgUser = getSgUser(req);
       if (!sgUser) return res.status(401).json({ error: 'Não autorizado. Faça login.' });
 
+      const distKmCriar = parseNumeroOpcional(DISTANCIAKM);
+      const vlFreteCriar = parseNumeroOpcional(VLFRETE);
+      const pesoCriar = parseNumeroOpcional(PESO);
+      const cubagemCriar = parseNumeroOpcional(CUBAGEM);
+      const cdContratadorCriar = parseNumeroOpcional(CDCONTRATADOR);
+      const cdClasseFrotaCriar = parseNumeroOpcional(CDCLASSEFROTA);
+      const idRoteiroCriar = parseNumeroOpcional(IDROTEIRO);
+
       const tenantCriar = tenantIdForRequest(req);
       chaveCriar = chaveCriacaoViagem(tenantCriar, sgUser, req.body);
       const recente = criacoesViagemRecentes.get(chaveCriar);
@@ -718,15 +740,15 @@ const viagemController = {
       request.input('FGSITVIAGEM', FGSITVIAGEM);
       request.input('CDSITUACAOVIAGEM', sql.SmallInt, CDSITUACAOVIAGEM);
       request.input('CDTIPOVIAGEM', sql.Int, CDTIPOVIAGEM);
-      request.input('CDCONTRATADOR', CDCONTRATADOR ? sql.Decimal(15, 0) : sql.VarChar, CDCONTRATADOR || null);
-      request.input('CDCLASSEFROTA', CDCLASSEFROTA ? sql.SmallInt : sql.VarChar, CDCLASSEFROTA || null);
+      request.input('CDCONTRATADOR', cdContratadorCriar != null ? sql.Decimal(15, 0) : sql.VarChar, cdContratadorCriar);
+      request.input('CDCLASSEFROTA', cdClasseFrotaCriar != null ? sql.SmallInt : sql.VarChar, cdClasseFrotaCriar);
       request.input('DTPREVINICIO', DTPREVINICIO ? sql.SmallDateTime : sql.VarChar, DTPREVINICIO || null);
       request.input('DTPREVFINAL', DTPREVFINAL ? sql.SmallDateTime : sql.VarChar, DTPREVFINAL || null);
-      request.input('IDROTEIRO', IDROTEIRO ? sql.Decimal(15, 0) : sql.VarChar, IDROTEIRO || null);
-      request.input('DISTANCIAKM', DISTANCIAKM ? sql.Decimal(15, 4) : sql.VarChar, DISTANCIAKM || null);
-      request.input('VLFRETE', VLFRETE ? sql.Decimal(15, 4) : sql.VarChar, VLFRETE || null);
-      request.input('PESO', PESO ? sql.Decimal(15, 4) : sql.VarChar, PESO || null);
-      request.input('CUBAGEM', CUBAGEM ? sql.Decimal(15, 4) : sql.VarChar, CUBAGEM || null);
+      request.input('IDROTEIRO', idRoteiroCriar != null ? sql.Decimal(15, 0) : sql.VarChar, idRoteiroCriar);
+      request.input('DISTANCIAKM', distKmCriar != null ? sql.Decimal(15, 4) : sql.VarChar, distKmCriar);
+      request.input('VLFRETE', vlFreteCriar != null ? sql.Decimal(15, 4) : sql.VarChar, vlFreteCriar);
+      request.input('PESO', pesoCriar != null ? sql.Decimal(15, 4) : sql.VarChar, pesoCriar);
+      request.input('CUBAGEM', cubagemCriar != null ? sql.Decimal(15, 4) : sql.VarChar, cubagemCriar);
       request.input('OBSERV', OBSERV?.trim() || null);
       request.input('FGRASTREADO', FGRASTREADO || 'N');
       request.input('MOEDA', (MOEDA && String(MOEDA).trim().substring(0, 3)) || 'BRL');
@@ -808,32 +830,40 @@ const viagemController = {
       const sgUserUpd = getSgUser(req);
       if (!sgUserUpd) return res.status(401).json({ error: 'Não autorizado. Faça login.' });
 
+      const distKm = parseNumeroOpcional(DISTANCIAKM);
+      const vlFrete = parseNumeroOpcional(VLFRETE);
+      const pesoNum = parseNumeroOpcional(PESO);
+      const cubagemNum = parseNumeroOpcional(CUBAGEM);
+      const cdContratador = parseNumeroOpcional(CDCONTRATADOR);
+      const cdClasseFrota = parseNumeroOpcional(CDCLASSEFROTA);
+      const idRoteiro = parseNumeroOpcional(IDROTEIRO);
+
       const pool = await poolPromise;
       const idNumerico = parseFloat(id);
 
       const request = pool.request();
       request.input('IDVIAGEM', sql.Decimal(15, 0), idNumerico);
-      request.input('FGSITVIAGEM', FGSITVIAGEM);
+      request.input('FGSITVIAGEM', sql.VarChar(1), FGSITVIAGEM);
       request.input('CDSITUACAOVIAGEM', sql.SmallInt, CDSITUACAOVIAGEM);
       request.input('CDTIPOVIAGEM', sql.Int, CDTIPOVIAGEM);
-      request.input('CDCONTRATADOR', CDCONTRATADOR ? sql.Decimal(15, 0) : sql.VarChar, CDCONTRATADOR || null);
-      request.input('CDCLASSEFROTA', CDCLASSEFROTA ? sql.SmallInt : sql.VarChar, CDCLASSEFROTA || null);
+      request.input('CDCONTRATADOR', cdContratador != null ? sql.Decimal(15, 0) : sql.VarChar, cdContratador);
+      request.input('CDCLASSEFROTA', cdClasseFrota != null ? sql.SmallInt : sql.VarChar, cdClasseFrota);
       request.input('DTPREVINICIO', DTPREVINICIO ? sql.SmallDateTime : sql.VarChar, DTPREVINICIO || null);
       request.input('DTPREVFINAL', DTPREVFINAL ? sql.SmallDateTime : sql.VarChar, DTPREVFINAL || null);
-      request.input('IDROTEIRO', IDROTEIRO ? sql.Decimal(15, 0) : sql.VarChar, IDROTEIRO || null);
-      request.input('DISTANCIAKM', DISTANCIAKM ? sql.Decimal(15, 4) : sql.VarChar, DISTANCIAKM || null);
-      request.input('VLFRETE', VLFRETE ? sql.Decimal(15, 4) : sql.VarChar, VLFRETE || null);
-      request.input('PESO', PESO ? sql.Decimal(15, 4) : sql.VarChar, PESO || null);
-      request.input('CUBAGEM', CUBAGEM ? sql.Decimal(15, 4) : sql.VarChar, CUBAGEM || null);
-      request.input('OBSERV', OBSERV?.trim() || null);
-      request.input('FGACTIVE', FGACTIVE === 'S' ? 'A' : 'I');
-      request.input('FGRASTREADO', FGRASTREADO || 'N');
-      request.input('MOEDA', (MOEDA != null && MOEDA !== '') ? String(MOEDA).trim().substring(0, 3) : null);
+      request.input('IDROTEIRO', idRoteiro != null ? sql.Decimal(15, 0) : sql.VarChar, idRoteiro);
+      request.input('DISTANCIAKM', distKm != null ? sql.Decimal(15, 4) : sql.VarChar, distKm);
+      request.input('VLFRETE', vlFrete != null ? sql.Decimal(15, 4) : sql.VarChar, vlFrete);
+      request.input('PESO', pesoNum != null ? sql.Decimal(15, 4) : sql.VarChar, pesoNum);
+      request.input('CUBAGEM', cubagemNum != null ? sql.Decimal(15, 4) : sql.VarChar, cubagemNum);
+      request.input('OBSERV', sql.VarChar(sql.MAX), OBSERV?.trim() || null);
+      request.input('FGACTIVE', sql.VarChar(1), FGACTIVE === 'S' ? 'A' : 'I');
+      request.input('FGRASTREADO', sql.VarChar(1), FGRASTREADO || 'N');
+      request.input('MOEDA', sql.VarChar(3), (MOEDA != null && MOEDA !== '') ? String(MOEDA).trim().substring(0, 3) : null);
       request.input('TIPO_SALDO', sql.VarChar(12), loteAtualizar.tipo);
-      request.input('SALDO_INICIAL_EMBARQUES', loteAtualizar.embarques != null ? sql.Int : sql.VarChar, loteAtualizar.embarques);
-      request.input('SALDO_INICIAL_TON', loteAtualizar.ton != null ? sql.Decimal(15, 3) : sql.VarChar, loteAtualizar.ton);
+      request.input('SALDO_INICIAL_EMBARQUES', loteAtualizar.embarques != null ? sql.Int : sql.Int, loteAtualizar.embarques);
+      request.input('SALDO_INICIAL_TON', loteAtualizar.ton != null ? sql.Decimal(15, 3) : sql.Decimal(15, 3), loteAtualizar.ton);
       request.input('sgUser', sql.VarChar(50), sgUserUpd);
-      request.input('TENANT_ID', tenantIdForRequest(req));
+      request.input('TENANT_ID', sql.VarChar(100), tenantIdForRequest(req));
 
       await request.query(`
         UPDATE [dbo].[VIAGEMMESTRE]
@@ -854,25 +884,25 @@ const viagemController = {
           [FGACTIVE] = @FGACTIVE,
           [FGRASTREADO] = @FGRASTREADO,
           [MOEDA] = COALESCE(@MOEDA, [MOEDA], 'BRL'),
-          [TIPO_SALDO] = @TIPO_SALDO,
-          [SALDO_INICIAL_EMBARQUES] = @SALDO_INICIAL_EMBARQUES,
+          [TIPO_SALDO] = CAST(@TIPO_SALDO AS VARCHAR(12)),
+          [SALDO_INICIAL_EMBARQUES] = CAST(@SALDO_INICIAL_EMBARQUES AS INTEGER),
           [SALDO_ATUAL_EMBARQUES] = CASE
-            WHEN @TIPO_SALDO IS NULL OR @TIPO_SALDO <> 'EMBARQUES' THEN NULL
-            WHEN [SALDO_ATUAL_EMBARQUES] IS NULL OR [SALDO_ATUAL_EMBARQUES] = [SALDO_INICIAL_EMBARQUES] THEN @SALDO_INICIAL_EMBARQUES
+            WHEN CAST(@TIPO_SALDO AS VARCHAR(12)) IS NULL OR CAST(@TIPO_SALDO AS VARCHAR(12)) <> 'EMBARQUES' THEN NULL
+            WHEN [SALDO_ATUAL_EMBARQUES] IS NULL OR [SALDO_ATUAL_EMBARQUES] = [SALDO_INICIAL_EMBARQUES] THEN CAST(@SALDO_INICIAL_EMBARQUES AS INTEGER)
             ELSE [SALDO_ATUAL_EMBARQUES]
           END,
-          [SALDO_INICIAL_TON] = @SALDO_INICIAL_TON,
+          [SALDO_INICIAL_TON] = CAST(@SALDO_INICIAL_TON AS DECIMAL(15, 3)),
           [SALDO_ATUAL_TON] = CASE
-            WHEN @TIPO_SALDO IS NULL OR @TIPO_SALDO <> 'TONELADAS' THEN NULL
-            WHEN [SALDO_ATUAL_TON] IS NULL OR [SALDO_ATUAL_TON] = [SALDO_INICIAL_TON] THEN @SALDO_INICIAL_TON
+            WHEN CAST(@TIPO_SALDO AS VARCHAR(12)) IS NULL OR CAST(@TIPO_SALDO AS VARCHAR(12)) <> 'TONELADAS' THEN NULL
+            WHEN [SALDO_ATUAL_TON] IS NULL OR [SALDO_ATUAL_TON] = [SALDO_INICIAL_TON] THEN CAST(@SALDO_INICIAL_TON AS DECIMAL(15, 3))
             ELSE [SALDO_ATUAL_TON]
           END,
           [STATUS_DISTRIBUICAO] = CASE
-            WHEN @TIPO_SALDO IS NULL THEN NULL
+            WHEN CAST(@TIPO_SALDO AS VARCHAR(12)) IS NULL THEN NULL
             WHEN [STATUS_DISTRIBUICAO] IN ('PARCIAL', 'ESGOTADA', 'CANCELADA') THEN [STATUS_DISTRIBUICAO]
             ELSE 'ABERTA'
           END,
-          [PERMITE_EXCEDER_SALDO] = CASE WHEN @TIPO_SALDO IS NULL THEN NULL ELSE 'N' END,
+          [PERMITE_EXCEDER_SALDO] = CASE WHEN CAST(@TIPO_SALDO AS VARCHAR(12)) IS NULL THEN NULL ELSE 'N' END,
           [DHMAINTENANCE] = GETDATE(),
           [SGUSER] = @sgUser,
           [SERVERORIG] = 'AppDVcargas'
@@ -943,7 +973,10 @@ const viagemController = {
       res.json({ success: true, message: 'Viagem atualizada com sucesso!' });
     } catch (err) {
       console.error('Erro ao atualizar viagem:', err);
-      res.status(500).json({ error: 'Erro ao atualizar viagem.' });
+      res.status(500).json({
+        error: 'Erro ao atualizar viagem.',
+        details: err && err.message ? String(err.message) : undefined
+      });
     }
   },
 
@@ -1779,6 +1812,8 @@ const viagemController = {
           [cg].[RZSOCIAL] AS NOME_MOTORISTA,
           [cg].[NRCELULAR] AS CELULAR,
           [cg].[ENDEMAIL] AS EMAIL,
+          [cg].[CGCCPF] AS CGCCPF_MOTORISTA,
+          [cg].[TENANT_ID] AS TENANT_CADASTRO,
           [cg].[CDTRANSPORTADOR],
           [t].[RZSOCIAL] AS TRANSPORTADOR_NOME,
           [t].[NRCELULAR] AS TRANSPORTADOR_CELULAR,
@@ -1862,7 +1897,19 @@ const viagemController = {
           OR COALESCE([cg].[FGTRANSPORTADOR], 'N') = 'S'
         )
           AND ([cg].[FGACTIVE] = 'A' OR [cg].[FGACTIVE] = 'S')
-          AND [cg].[TENANT_ID] = @TENANT_ID
+          AND (
+            [cg].[TENANT_ID] = @TENANT_ID
+            OR (
+              [cg].[TENANT_ID] = @TENANT_BOLSAO
+              AND EXISTS (
+                SELECT 1
+                  FROM [dbo].[CADASTRO_TENANT_VINCULO] [vinc]
+                 WHERE [vinc].[TENANT_ID] = @TENANT_ID
+                   AND [vinc].[CDCADASTRO] = [cg].[CDCADASTRO]
+                   AND COALESCE([vinc].[FGACTIVE], 'A') IN ('A', 'S')
+              )
+            )
+          )
           ${validarClasseFrota ? `
           AND EXISTS (
             SELECT 1 FROM [dbo].[CLASSEFROTA_CG] [cfcg]
@@ -1890,6 +1937,7 @@ const viagemController = {
 
       const request = pool.request();
       request.input('TENANT_ID', sql.NVarChar(64), tenantIdForRequest(req));
+      request.input('TENANT_BOLSAO', sql.NVarChar(64), getDefaultTenantId());
       // Adicionar IDVIAGEM para o JOIN com CONVOCACAO
       request.input('IDVIAGEM', sql.Decimal(15, 0), parseFloat(idViagem));
       
@@ -1954,9 +2002,10 @@ const viagemController = {
 
       const result = await request.query(query);
       const raw = result.recordset || [];
+      const tidReq = String(tenantIdForRequest(req) || '').trim().toLowerCase();
 
       // Normalizar chaves: PostgreSQL devolve em minúsculas; frontend espera MAIÚSCULAS_COM_UNDERSCORE
-      const recordset = raw.map(row => {
+      const mapped = raw.map(row => {
         const get = (key) => (row[key] != null ? row[key] : row[key.toLowerCase()]);
         const cdMot = get('CDCADASTRO_MOTORISTA');
         const cdTransp = get('CDTRANSPORTADOR');
@@ -1966,11 +2015,15 @@ const viagemController = {
           String(cdTransp).trim() !== '' &&
           Number(cdMot) === Number(cdTransp);
         const transpInvalido = cdTransp == null || String(cdTransp).trim() === '' || mesmoCadastro;
+        const doc = String(get('CGCCPF_MOTORISTA') ?? '').replace(/\D/g, '');
+        const placas = get('CONJUNTO_PLACAS_CLASSES_MOTORISTA');
         return {
           CDCADASTRO_MOTORISTA: cdMot,
           NOME_MOTORISTA: get('NOME_MOTORISTA'),
           CELULAR: get('CELULAR'),
           EMAIL: get('EMAIL'),
+          CGCCPF_MOTORISTA: doc || null,
+          TENANT_CADASTRO: get('TENANT_CADASTRO'),
           CDTRANSPORTADOR: transpInvalido ? null : cdTransp,
           TRANSPORTADOR_NOME: transpInvalido ? null : get('TRANSPORTADOR_NOME'),
           TRANSPORTADOR_CELULAR: transpInvalido ? null : get('TRANSPORTADOR_CELULAR'),
@@ -1982,12 +2035,37 @@ const viagemController = {
           FOI_ACIONADO: get('FOI_ACIONADO'),
           QTVIAGENS: get('QTVIAGENS'),
           QTVIAGENS_NESTA_ROTA: get('QTVIAGENS_NESTA_ROTA'),
-          CONJUNTO_PLACAS_CLASSES_MOTORISTA: get('CONJUNTO_PLACAS_CLASSES_MOTORISTA'),
+          CONJUNTO_PLACAS_CLASSES_MOTORISTA: placas,
+          _temVeiculo: !!(placas && String(placas).trim()),
+          _doTenant: String(get('TENANT_CADASTRO') || '').trim().toLowerCase() === tidReq,
         };
       });
 
+      // Um CPF/CNPJ = uma linha (evita bolsão + cópia própria do mesmo motorista).
+      // Prioridade: veículo aprovado → cadastro da torre → mais viagens na rota → geral → menor código.
+      const score = (m) => {
+        const rota = Number(m.QTVIAGENS_NESTA_ROTA) || 0;
+        const geral = Number(m.QTVIAGENS) || 0;
+        const id = Number(m.CDCADASTRO_MOTORISTA) || 0;
+        return (m._temVeiculo ? 1e9 : 0) + (m._doTenant ? 1e8 : 0) + rota * 1e4 + geral * 10 - id;
+      };
+      const byDoc = new Map();
+      const semDoc = [];
+      for (const m of mapped) {
+        const key = m.CGCCPF_MOTORISTA;
+        if (!key) {
+          semDoc.push(m);
+          continue;
+        }
+        const prev = byDoc.get(key);
+        if (!prev || score(m) > score(prev)) byDoc.set(key, m);
+      }
+      const recordset = [...byDoc.values(), ...semDoc]
+        .sort((a, b) => score(b) - score(a))
+        .map(({ _temVeiculo, _doTenant, CGCCPF_MOTORISTA, TENANT_CADASTRO, ...rest }) => rest);
+
       if (process.env.NODE_ENV !== 'production') {
-        console.log(`[Compatíveis] Viagem ${idViagem}: ${recordset.length} registro(s) retornado(s).`);
+        console.log(`[Compatíveis] Viagem ${idViagem}: ${mapped.length} bruto → ${recordset.length} após dedupe por documento.`);
       }
 
       res.json({ motoristas: recordset, viagemResumo });
@@ -2133,6 +2211,21 @@ const viagemController = {
 
       const pool = await poolPromise;
       const tenantIdConv = tenantIdForRequest(req);
+
+      let finWarningConv = null;
+      try {
+        const gate = await finInad.aplicarGate({ tipo: 'TENANT', tenantId: tenantIdConv });
+        finWarningConv = gate.warning;
+      } catch (gateErr) {
+        if (gateErr && gateErr.statusCode === 403) {
+          return res.status(403).json({
+            error: gateErr.message,
+            code: gateErr.code || finInad.CODE_BLOQUEIO,
+          });
+        }
+        console.error('[criarConvocacoes] fin-inad fail-open:', gateErr);
+      }
+
       const vTenantCheck = await pool
         .request()
         .input('IDVIAGEM', sql.Decimal(15, 0), idViagem)
@@ -2291,13 +2384,18 @@ const viagemController = {
         mensagem = `${reutilizadas} convocação(ões) reutilizada(s) (já existiam no banco).`;
       }
 
-      res.status(201).json({
-        success: true,
-        message: mensagem,
-        convocacoes,
-        novas,
-        reutilizadas
-      });
+      res.status(201).json(
+        finInad.anexarWarning(
+          {
+            success: true,
+            message: mensagem,
+            convocacoes,
+            novas,
+            reutilizadas,
+          },
+          finWarningConv
+        )
+      );
 
       // Log-resumo da etapa de divulgação/disparo de convocações
       await registrarResumoEtapaWhatsApp(pool, {
@@ -2443,7 +2541,7 @@ const viagemController = {
           (${sqlCoalesceDsClasseConjuntoConvocacaoComSnapshot()}) AS [DSCLASSEFROTA_CONJUNTO]
         FROM [dbo].[CONVOCACAO] [c]
         INNER JOIN [dbo].[VIAGEMMESTRE] [v] ON [c].[IDVIAGEM] = [v].[IDVIAGEM] AND [c].[TENANT_ID] = [v].[TENANT_ID]
-        INNER JOIN [dbo].[CADASTROGERAL] [cg] ON [c].[CDCADASTRO_MOTORISTA] = [cg].[CDCADASTRO] AND [cg].[TENANT_ID] = [c].[TENANT_ID]
+        INNER JOIN [dbo].[CADASTROGERAL] [cg] ON [c].[CDCADASTRO_MOTORISTA] = [cg].[CDCADASTRO]
         LEFT JOIN [dbo].[CLASSEFROTA] [cf] ON [v].[CDCLASSEFROTA] = [cf].[CDCLASSEFROTA]
           AND ([cf].[TENANT_ID] = [v].[TENANT_ID] OR [cf].[TENANT_ID] = 'default')
         LEFT JOIN [dbo].[ROTEIRO] [r] ON [v].[IDROTEIRO] = [r].[IDROTEIRO] AND ([r].[TENANT_ID] = [v].[TENANT_ID] OR [r].[TENANT_ID] = 'default')
@@ -2605,7 +2703,7 @@ const viagemController = {
             (${sqlCoalesceDsClasseConjuntoConvocacaoComSnapshot()}) AS [DSCLASSEFROTA_CONJUNTO]
           FROM [dbo].[CONVOCACAO] [c]
           INNER JOIN [dbo].[VIAGEMMESTRE] [v] ON [c].[IDVIAGEM] = [v].[IDVIAGEM] AND [c].[TENANT_ID] = [v].[TENANT_ID]
-          INNER JOIN [dbo].[CADASTROGERAL] [cg] ON [c].[CDCADASTRO_MOTORISTA] = [cg].[CDCADASTRO] AND [cg].[TENANT_ID] = [c].[TENANT_ID]
+          INNER JOIN [dbo].[CADASTROGERAL] [cg] ON [c].[CDCADASTRO_MOTORISTA] = [cg].[CDCADASTRO]
           LEFT JOIN [dbo].[CLASSEFROTA] [cf] ON [v].[CDCLASSEFROTA] = [cf].[CDCLASSEFROTA]
             AND ([cf].[TENANT_ID] = [v].[TENANT_ID] OR [cf].[TENANT_ID] = 'default')
           LEFT JOIN [dbo].[ROTEIRO] [r] ON [v].[IDROTEIRO] = [r].[IDROTEIRO] AND ([r].[TENANT_ID] = [v].[TENANT_ID] OR [r].[TENANT_ID] = 'default')
@@ -2836,6 +2934,21 @@ const viagemController = {
 
       const tidConfirm = tenantIdForRequest(req);
 
+      // Fase 4 — inadimplência do TENANT antes de qualquer efeito (e antes da TX financeira)
+      let finWarningConfirm = null;
+      try {
+        const gate = await finInad.aplicarGate({ tipo: 'TENANT', tenantId: tidConfirm });
+        finWarningConfirm = gate.warning;
+      } catch (gateErr) {
+        if (gateErr && gateErr.statusCode === 403) {
+          return res.status(403).json({
+            error: gateErr.message,
+            code: gateErr.code || finInad.CODE_BLOQUEIO,
+          });
+        }
+        console.error('[CONFIRMAR] fin-inad fail-open:', gateErr);
+      }
+
       // Primeiro, buscar a convocação para obter o IDVIAGEM e o motorista (CDCADASTRO_MOTORISTA)
       const convocacaoResult = await pool
         .request()
@@ -2911,31 +3024,7 @@ const viagemController = {
         }
       }
 
-      // Viagem comum: uma confirmação fecha a viagem. Lote: cada confirmação abre uma filha.
-      if (!loteAtivo) {
-      // Verificar se já existe outra convocação CONFIRMADA para a mesma viagem
-      const confirmadaResult = await pool
-        .request()
-        .input('IDVIAGEM', sql.Decimal(15, 0), convocacao.IDVIAGEM)
-        .input('IDCONVOCACAO', sql.Int, parseInt(id))
-        .input('TENANT_ID', sql.NVarChar(64), tidConfirm)
-        .query(`
-          SELECT [IDCONVOCACAO]
-          FROM [dbo].[CONVOCACAO]
-          WHERE [IDVIAGEM] = @IDVIAGEM
-            AND [TENANT_ID] = @TENANT_ID
-            AND [STATUS] = 'CONFIRMADA'
-            AND [IDCONVOCACAO] != @IDCONVOCACAO
-        `);
-
-      if (confirmadaResult.recordset.length > 0) {
-        return res.status(400).json({
-          error: 'Já existe uma convocação confirmada para esta viagem. Não é possível confirmar outra.'
-        });
-      }
-      }
-
-      // Iniciar transação para garantir atomicidade (após todas as validações)
+      // Iniciar transação (lock + revalidação dentro do BEGIN — evita duas CONFIRMADA na viagem comum)
       transaction = await createTransaction(pool);
       await transaction.begin();
       console.log(`[CONFIRMAR] Transação iniciada para convocação ${id}`);
@@ -2943,6 +3032,63 @@ const viagemController = {
       try {
         let veiculosVinculadosConfirmacao = 0;
         let derivacaoLote = null;
+        let cobrancaFinanceira = null;
+
+        // Serializa confirmações da mesma viagem (e da mãe, no lote).
+        await transaction.request()
+          .input('IDVIAGEM_LOCK', sql.Decimal(15, 0), convocacao.IDVIAGEM)
+          .input('TENANT_ID', sql.NVarChar(64), tidConfirm)
+          .query(`
+            SELECT [IDVIAGEM], [TIPO_SALDO], [VLFRETE], [IDVIAGEM_MAE]
+            FROM [dbo].[VIAGEMMESTRE]
+            WHERE [IDVIAGEM] = @IDVIAGEM_LOCK AND [TENANT_ID] = @TENANT_ID
+            FOR UPDATE
+          `);
+
+        const convLock = await transaction.request()
+          .input('IDCONVOCACAO', sql.Int, parseInt(id, 10))
+          .input('TENANT_ID', sql.NVarChar(64), tidConfirm)
+          .query(`
+            SELECT [IDCONVOCACAO], [IDVIAGEM], [STATUS], [CDCADASTRO_MOTORISTA]
+            FROM [dbo].[CONVOCACAO]
+            WHERE [IDCONVOCACAO] = @IDCONVOCACAO AND [TENANT_ID] = @TENANT_ID
+            FOR UPDATE
+          `);
+        const convLocked = convLock.recordset && convLock.recordset[0];
+        if (!convLocked) {
+          throw Object.assign(new Error('Convocação não encontrada.'), { statusCode: 404 });
+        }
+        const stLocked = String(convLocked.STATUS ?? convLocked.status ?? '').trim().toUpperCase();
+        if (stLocked !== 'ACEITA') {
+          throw Object.assign(
+            new Error(`Apenas convocações com status ACEITA podem ser confirmadas. Status atual: ${stLocked}`),
+            { statusCode: 400, code: 'STATUS_NAO_ACEITA' }
+          );
+        }
+
+        // Viagem comum: uma confirmação. Revalida COM lock.
+        if (!loteAtivo) {
+          const confirmadaResult = await transaction.request()
+            .input('IDVIAGEM', sql.Decimal(15, 0), convocacao.IDVIAGEM)
+            .input('IDCONVOCACAO', sql.Int, parseInt(id, 10))
+            .input('TENANT_ID', sql.NVarChar(64), tidConfirm)
+            .query(`
+              SELECT [IDCONVOCACAO]
+              FROM [dbo].[CONVOCACAO]
+              WHERE [IDVIAGEM] = @IDVIAGEM
+                AND [TENANT_ID] = @TENANT_ID
+                AND [STATUS] = 'CONFIRMADA'
+                AND [IDCONVOCACAO] != @IDCONVOCACAO
+              FOR UPDATE
+            `);
+          if (confirmadaResult.recordset.length > 0) {
+            throw Object.assign(
+              new Error('Já existe uma convocação confirmada para esta viagem. Não é possível confirmar outra.'),
+              { statusCode: 400, code: 'JA_CONFIRMADA' }
+            );
+          }
+        }
+
         if (loteAtivo) {
           derivacaoLote = await loteSaldo.consumirECriarFilha(transaction, {
             idViagem: convocacao.IDVIAGEM,
@@ -2953,11 +3099,21 @@ const viagemController = {
           });
           if (derivacaoLote && derivacaoLote.aplicou) {
             convocacao.IDVIAGEM = derivacaoLote.idFilha;
+            await transaction.request()
+              .input('IDVIAGEM_LOCK', sql.Decimal(15, 0), convocacao.IDVIAGEM)
+              .input('TENANT_ID', sql.NVarChar(64), tidConfirm)
+              .query(`
+                SELECT [IDVIAGEM], [VLFRETE]
+                FROM [dbo].[VIAGEMMESTRE]
+                WHERE [IDVIAGEM] = @IDVIAGEM_LOCK AND [TENANT_ID] = @TENANT_ID
+                FOR UPDATE
+              `);
           }
         }
-        // 1. Confirmar a convocação selecionada
+
+        // 1. Confirmar a convocação selecionada (condicional: só se ainda ACEITA)
         const request1 = transaction.request();
-        await request1
+        const updConfirm = await request1
           .input('IDCONVOCACAO_CONFIRM', sql.Int, parseInt(id))
           .input('TENANT_ID', sql.NVarChar(64), tidConfirm)
           .input('SGUSUARIO_OPERADOR_CONFIRM', sql.VarChar(50), userLogin)
@@ -2969,8 +3125,50 @@ const viagemController = {
                 [SGUSUARIO_OPERADOR] = @SGUSUARIO_OPERADOR_CONFIRM,
                 [DHMAINTENANCE] = GETDATE(),
                 [SGUSER] = @sgUser
-            WHERE [IDCONVOCACAO] = @IDCONVOCACAO_CONFIRM AND [TENANT_ID] = @TENANT_ID
+            WHERE [IDCONVOCACAO] = @IDCONVOCACAO_CONFIRM
+              AND [TENANT_ID] = @TENANT_ID
+              AND [STATUS] = 'ACEITA'
           `);
+        const rowsConfirm = (updConfirm.rowsAffected && updConfirm.rowsAffected[0]) || 0;
+        if (!rowsConfirm) {
+          throw Object.assign(
+            new Error('A convocação mudou antes da confirmação. Atualize a lista e tente de novo.'),
+            { statusCode: 409, code: 'CONVOCACAO_MUDOU' }
+          );
+        }
+
+        // Atlas Pay — cobrança de conexão (só se contrato ativo; falha → rollback)
+        const freteRes = await transaction.request()
+          .input('IDVIAGEM', sql.Decimal(15, 0), convocacao.IDVIAGEM)
+          .input('TENANT_ID', sql.NVarChar(64), tidConfirm)
+          .query(`
+            SELECT [VLFRETE] FROM [dbo].[VIAGEMMESTRE]
+            WHERE [IDVIAGEM] = @IDVIAGEM AND [TENANT_ID] = @TENANT_ID
+          `);
+        const vlFreteConfirm =
+          freteRes.recordset && freteRes.recordset[0]
+            ? freteRes.recordset[0].VLFRETE ?? freteRes.recordset[0].vlfrete
+            : null;
+        const idCiclo = `${parseInt(id, 10)}:C:${Date.now()}`;
+        try {
+          cobrancaFinanceira = await financeiroCobranca.criarCobrancaConexaoNaConfirmacao(transaction, {
+            tenantId: tidConfirm,
+            idConvocacao: parseInt(id, 10),
+            idViagem: convocacao.IDVIAGEM,
+            cdMotorista: convocacao.CDCADASTRO_MOTORISTA ?? convocacao.cdcadastro_motorista ?? convLocked.CDCADASTRO_MOTORISTA,
+            vlFrete: vlFreteConfirm,
+            usuario: userLogin,
+            idCicloConfirmacao: idCiclo,
+          });
+        } catch (finErr) {
+          if (finErr && finErr.statusCode) {
+            throw Object.assign(new Error(finErr.message), {
+              statusCode: finErr.statusCode,
+              code: finErr.code || 'FINANCEIRO',
+            });
+          }
+          throw finErr;
+        }
 
         // 2. NÃO recusar convocações PENDENTES automaticamente
         // Apenas manter como PENDENTE - não alterar status de quem não respondeu
@@ -3135,7 +3333,7 @@ const viagemController = {
                 LEFT JOIN [dbo].[CIDADE] co ON r.[CDCIDADEORIGEM] = co.[CDCIDADE]
                 LEFT JOIN [dbo].[CIDADE] cd ON r.[CDCIDADEDESTINO] = cd.[CDCIDADE]
                 LEFT JOIN [dbo].[CONVOCACAO] c ON c.[IDVIAGEM] = v.[IDVIAGEM] AND c.[STATUS] = 'CONFIRMADA' AND c.[TENANT_ID] = v.[TENANT_ID]
-                LEFT JOIN [dbo].[CADASTROGERAL] cg ON c.[CDCADASTRO_MOTORISTA] = cg.[CDCADASTRO] AND cg.[TENANT_ID] = c.[TENANT_ID]
+                LEFT JOIN [dbo].[CADASTROGERAL] cg ON c.[CDCADASTRO_MOTORISTA] = cg.[CDCADASTRO]
                 WHERE v.[IDVIAGEM] = @IDVIAGEM AND v.[TENANT_ID] = @TENANT_ID
               `);
 
@@ -3172,7 +3370,7 @@ const viagemController = {
               upper(contratador.[RZSOCIAL]) AS CONTRATADOR_NOME,
               contratador.[NRCELULAR] AS CONTRATADOR_CELULAR
             FROM [dbo].[CONVOCACAO] c
-            INNER JOIN [dbo].[CADASTROGERAL] cg ON c.[CDCADASTRO_MOTORISTA] = cg.[CDCADASTRO] AND cg.[TENANT_ID] = c.[TENANT_ID]
+            INNER JOIN [dbo].[CADASTROGERAL] cg ON c.[CDCADASTRO_MOTORISTA] = cg.[CDCADASTRO]
             INNER JOIN [dbo].[VIAGEMMESTRE] v ON c.[IDVIAGEM] = v.[IDVIAGEM] AND c.[TENANT_ID] = v.[TENANT_ID]
             LEFT JOIN [dbo].[ROTEIRO] r ON v.[IDROTEIRO] = r.[IDROTEIRO] AND (r.[TENANT_ID] = v.[TENANT_ID] OR r.[TENANT_ID] = 'default')
             LEFT JOIN [dbo].[CIDADE] co ON r.[CDCIDADEORIGEM] = co.[CDCIDADE]
@@ -3423,18 +3621,25 @@ const viagemController = {
           console.warn('[CONFIRMAR] Erro ao enviar mensagens via webhook:', webhookErr.message);
         }
 
-        res.json({
-          success: true,
-          message: mensagem,
-          whatsappLink: whatsappLink,
-          mensagemConfirmacao: textoMensagem || null,
-          motorista: motorista ? {
-            nome: motorista.NOME_MOTORISTA,
-            celular: motorista.NRCELULAR
-          } : null,
-          mensagensEnviadasViaWebhook: mensagensEnviadasViaWebhook,
-          veiculosVinculadosConfirmacao,
-        });
+        res.json(
+          finInad.anexarWarning(
+            {
+              success: true,
+              message: mensagem,
+              whatsappLink: whatsappLink,
+              mensagemConfirmacao: textoMensagem || null,
+              motorista: motorista
+                ? {
+                    nome: motorista.NOME_MOTORISTA,
+                    celular: motorista.NRCELULAR,
+                  }
+                : null,
+              mensagensEnviadasViaWebhook: mensagensEnviadasViaWebhook,
+              veiculosVinculadosConfirmacao,
+            },
+            finWarningConfirm
+          )
+        );
       } catch (err) {
         const idConv = req.params && req.params.id;
         console.error(`[CONFIRMAR] Erro na transação para convocação ${idConv}:`, err);
@@ -3533,7 +3738,7 @@ const viagemController = {
             END AS [VIAGEM_JA_CONFIRMADA]
           FROM [dbo].[CONVOCACAO] c
           INNER JOIN [dbo].[VIAGEMMESTRE] v ON c.[IDVIAGEM] = v.[IDVIAGEM] AND c.[TENANT_ID] = v.[TENANT_ID]
-          INNER JOIN [dbo].[CADASTROGERAL] cg ON c.[CDCADASTRO_MOTORISTA] = cg.[CDCADASTRO] AND cg.[TENANT_ID] = c.[TENANT_ID]
+          INNER JOIN [dbo].[CADASTROGERAL] cg ON c.[CDCADASTRO_MOTORISTA] = cg.[CDCADASTRO]
           LEFT JOIN [dbo].[CLASSEFROTA] cf ON v.[CDCLASSEFROTA] = cf.[CDCLASSEFROTA]
             AND (cf.[TENANT_ID] = v.[TENANT_ID] OR cf.[TENANT_ID] = 'default')
           LEFT JOIN [dbo].[ROTEIRO] r ON v.[IDROTEIRO] = r.[IDROTEIRO] AND (r.[TENANT_ID] = v.[TENANT_ID] OR r.[TENANT_ID] = 'default')
@@ -3966,14 +4171,27 @@ const viagemController = {
       const sgUser = getSgUser(req);
       if (!sgUser) return res.status(401).json({ error: 'Não autorizado. Faça login.' });
       const motivo = req.body && (req.body.motivo || req.body.MOTIVO);
+      // Origem atribuída pela torre autenticada: só TORRE|MOTORISTA (nunca SISTEMA via HTTP).
+      const origemDesistencia = financeiroCobranca.normalizarOrigemCancelamento(
+        req.body && (req.body.origemDesistencia || req.body.ORIGEM_DESISTENCIA),
+        { permitirSistema: false }
+      );
+      const tidDes = tenantIdForRequest(req);
       const pool = await poolPromise;
       transaction = await createTransaction(pool);
       await transaction.begin();
       const resultado = await loteSaldo.devolverVaga(transaction, {
         idConvocacao: parseInt(id, 10),
-        tenantId: tenantIdForRequest(req),
+        tenantId: tidDes,
         motivo,
         usuario: sgUser
+      });
+      const finCanc = await financeiroCobranca.cancelarCobrancaConexaoNaTransacao(transaction, {
+        tenantId: tidDes,
+        idConvocacao: parseInt(id, 10),
+        usuario: sgUser,
+        motivo: String(motivo || 'Desistência de lote').slice(0, 400),
+        origem: origemDesistencia,
       });
       await transaction.commit();
       transaction = null;
@@ -3983,7 +4201,9 @@ const viagemController = {
       res.json({
         success: true,
         message: `Vaga devolvida à oferta ${resultado.idMae}. Saldo: ${saldoTxt}. A viagem ${resultado.idFilha} foi cancelada.`,
-        ...resultado
+        ...resultado,
+        origemDesistencia,
+        cobrancasCanceladas: (finCanc && finCanc.canceladas) || 0,
       });
     } catch (err) {
       if (transaction) await transaction.rollback().catch(() => {});
@@ -4194,6 +4414,22 @@ const viagemController = {
             `);
         }
 
+        // Atlas Pay: cancela cobrança do ciclo. Origem atribuída pela torre: TORRE | MOTORISTA.
+        const origemDesistencia = financeiroCobranca.normalizarOrigemCancelamento(
+          req.body && (req.body.origemDesistencia || req.body.ORIGEM_DESISTENCIA),
+          { permitirSistema: false }
+        );
+        const motivoTxt = motivoResult.recordset[0]
+          ? String(motivoResult.recordset[0].DSMOTIVO || motivoResult.recordset[0].dsmotivo || '')
+          : '';
+        const finCanc = await financeiroCobranca.cancelarCobrancaConexaoNaTransacao(transaction, {
+          tenantId: tidReat,
+          idConvocacao: parseInt(id, 10),
+          usuario: userLogin,
+          motivo: motivoTxt || 'Reabertura da convocação',
+          origem: origemDesistencia,
+        });
+
         await transaction.commit();
         console.log(`[REATIVAR] Transação commitada com sucesso para convocação ${id}`);
 
@@ -4202,6 +4438,9 @@ const viagemController = {
         let mensagem = `Convocação ${id} reativada com sucesso. Motivo: ${motivo.DSMOTIVO}`;
         if (totalReativadas > 0) {
           mensagem += `\n\n${totalReativadas} convocação(ões) ACEITA (Não Selecionada) também foram reativada(s) automaticamente.`;
+        }
+        if (finCanc && finCanc.canceladas > 0) {
+          mensagem += `\n\n${finCanc.canceladas} cobrança(s) Atlas Pay cancelada(s) (origem: ${origemDesistencia}).`;
         }
 
         res.json({
@@ -4212,7 +4451,9 @@ const viagemController = {
           motivo: motivo.DSMOTIVO,
           motivoCodigo: motivo.CDMOTIVO,
           idViagem: convocacao.IDVIAGEM,
-          totalReativadas: totalReativadas
+          totalReativadas: totalReativadas,
+          origemDesistencia,
+          cobrancasCanceladas: (finCanc && finCanc.canceladas) || 0,
         });
 
       } catch (err) {
@@ -4258,7 +4499,7 @@ const viagemController = {
           [h].[OBSERVACAO]
         FROM [dbo].[HISTORICOREABERTURA] [h]
         INNER JOIN [dbo].[CONVOCACAO] [conv] ON [h].[IDCONVOCACAO] = [conv].[IDCONVOCACAO] AND [conv].[TENANT_ID] = @TENANT_ID
-        LEFT JOIN [dbo].[CADASTROGERAL] [cg] ON [h].[CDCADASTRO_MOTORISTA] = [cg].[CDCADASTRO] AND [cg].[TENANT_ID] = [conv].[TENANT_ID]
+        LEFT JOIN [dbo].[CADASTROGERAL] [cg] ON [h].[CDCADASTRO_MOTORISTA] = [cg].[CDCADASTRO]
         LEFT JOIN [dbo].[MOTIVOREABERTURA] [mr] ON [h].[CDMOTIVOREABERTURA] = [mr].[CDMOTIVO]
         WHERE [h].[IDCONVOCACAO] = @IDCONVOCACAO
           AND [h].[FGACTIVE] = 'A'
@@ -4370,7 +4611,7 @@ const viagemController = {
             cg.[NRCELULAR] AS [NRCELULAR_MOTORISTA],
             upper(cg.[RZSOCIAL]) AS [NOME_MOTORISTA]
           FROM [dbo].[CONVOCACAO] c
-          INNER JOIN [dbo].[CADASTROGERAL] cg ON c.[CDCADASTRO_MOTORISTA] = cg.[CDCADASTRO] AND cg.[TENANT_ID] = c.[TENANT_ID]
+          INNER JOIN [dbo].[CADASTROGERAL] cg ON c.[CDCADASTRO_MOTORISTA] = cg.[CDCADASTRO]
           WHERE c.[IDCONVOCACAO] = @IDCONVOCACAO
         `;
       const sqlConvRespComPlacas = sqlConvResp.replace(
@@ -5448,10 +5689,15 @@ const viagemController = {
     }
   },
 
-  // Remover motorista específico da viagem
+  // Remover motorista da viagem.
+  // Atlas Pay: se houver convocação CONFIRMADA desse motorista na viagem do tenant,
+  // cancela cobrança CONEXAO ABERTA/PAGA na mesma TX. Não altera STATUS da convocação.
   removerMotoristaViagem: async (req, res) => {
+    let transaction = null;
     try {
       const { id, cdmotorista } = req.params;
+      const sgUser = getSgUser(req);
+      if (!sgUser) return res.status(401).json({ error: 'Não autorizado. Faça login.' });
 
       if (!cdmotorista) {
         return res.status(400).json({ error: 'Código do motorista é obrigatório.' });
@@ -5468,33 +5714,78 @@ const viagemController = {
         return res.status(400).json({ error: 'Código do motorista inválido.' });
       }
 
-      const pool = await poolPromise;
-      const transaction = await createTransaction(pool);
+      const tid = tenantIdForRequest(req);
+      const origemBody = req.body && (req.body.origemDesistencia || req.body.ORIGEM_DESISTENCIA);
+      const origem = financeiroCobranca.normalizarOrigemCancelamento(origemBody, {
+        permitirSistema: false,
+      });
 
+      const pool = await poolPromise;
+      transaction = await createTransaction(pool);
       await transaction.begin();
 
-      try {
-        const deleteRequest = transaction.request();
-        const result = await deleteRequest
-          .input('IDVIAGEM', sql.Decimal(15, 0), idNum)
-          .input('CDMOTORISTA', sql.Decimal(15, 0), cdmotoristaNum)
-          .query(`
-            DELETE FROM [dbo].[VIAGEMMOTORISTA]
-            WHERE [IDVIAGEM] = @IDVIAGEM AND [CDMOTORISTA] = @CDMOTORISTA
-          `);
-
-        if (result.rowsAffected[0] === 0) {
-          await transaction.rollback();
-          return res.status(404).json({ error: 'Motorista não encontrado para esta viagem.' });
-        }
-
-        await transaction.commit();
-        res.json({ success: true, message: 'Motorista removido com sucesso!' });
-      } catch (err) {
+      const viagemOk = await transaction
+        .request()
+        .input('IDVIAGEM', sql.Decimal(15, 0), idNum)
+        .input('TENANT_ID', sql.NVarChar(64), tid)
+        .query(`
+          SELECT [IDVIAGEM] FROM [dbo].[VIAGEMMESTRE]
+          WHERE [IDVIAGEM] = @IDVIAGEM AND [TENANT_ID] = @TENANT_ID
+        `);
+      if (!viagemOk.recordset || !viagemOk.recordset.length) {
         await transaction.rollback();
-        throw err;
+        transaction = null;
+        return res.status(404).json({ error: 'Viagem não encontrada neste tenant.' });
       }
+
+      const result = await transaction
+        .request()
+        .input('IDVIAGEM', sql.Decimal(15, 0), idNum)
+        .input('CDMOTORISTA', sql.Decimal(15, 0), cdmotoristaNum)
+        .input('TENANT_ID', sql.NVarChar(64), tid)
+        .query(`
+          DELETE FROM [dbo].[VIAGEMMOTORISTA]
+          WHERE [IDVIAGEM] = @IDVIAGEM
+            AND [CDMOTORISTA] = @CDMOTORISTA
+            AND EXISTS (
+              SELECT 1 FROM [dbo].[VIAGEMMESTRE] [v]
+              WHERE [v].[IDVIAGEM] = @IDVIAGEM AND [v].[TENANT_ID] = @TENANT_ID
+            )
+        `);
+
+      if (result.rowsAffected[0] === 0) {
+        await transaction.rollback();
+        transaction = null;
+        return res.status(404).json({ error: 'Motorista não encontrado para esta viagem.' });
+      }
+
+      const finCanc = await financeiroCobranca.cancelarCobrancasConexaoAoRemoverMotorista(transaction, {
+        tenantId: tid,
+        idViagem: idNum,
+        cdMotorista: cdmotoristaNum,
+        usuario: sgUser,
+        motivo: 'Remoção do motorista da viagem',
+        origem,
+      });
+
+      await transaction.commit();
+      transaction = null;
+
+      const nCanc = (finCanc && finCanc.canceladas) || 0;
+      let message = 'Motorista removido com sucesso!';
+      if (nCanc > 0) {
+        message += ` ${nCanc} cobrança(s) Atlas Pay cancelada(s) (origem: ${origem}).`;
+      }
+
+      res.json({
+        success: true,
+        message,
+        origemDesistencia: origem,
+        cobrancasCanceladas: nCanc,
+        convocacoesAfetadas: (finCanc && finCanc.convocacoes) || [],
+      });
     } catch (err) {
+      if (transaction) await transaction.rollback().catch(() => {});
       console.error('Erro ao remover motorista da viagem:', err);
       res.status(500).json({ error: 'Erro ao remover motorista da viagem.' });
     }

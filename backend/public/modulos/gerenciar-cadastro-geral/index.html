@@ -1110,36 +1110,78 @@
       text-decoration: none;
       transform: scale(1.1);
     }
-    /* Grid Cadastro Geral: colunas Situação e Ações no padrão (como Tipos de Validade) */
+    /* Grid Cadastro Geral: Situação compacta; Ações largas o bastante p/ bolsão + WhatsApp + Ver */
     #cadastrosGrid th:nth-last-child(2),
     #cadastrosGrid td:nth-last-child(2) {
-      width: 120px !important; min-width: 120px !important; max-width: 120px !important;
+      width: 100px !important;
+      min-width: 100px !important;
+      max-width: 110px !important;
       text-align: right !important;
       white-space: nowrap !important;
       overflow: visible !important;
     }
     #cadastrosGrid td:nth-last-child(2) .cell-value { text-align: right !important; }
-    /* Ações: 3 botões (32px cada + 6px gap) = 108px conteúdo; padding 8px cada lado = 124px total — coluna justa */
     #cadastrosGrid .grid-actions-header,
     #cadastrosGrid th:last-child {
-      width: 124px !important; min-width: 124px !important; max-width: 124px !important;
+      width: 300px !important;
+      min-width: 280px !important;
+      max-width: 340px !important;
       text-align: right !important;
-      padding: 12px 8px !important;
+      padding: 12px 10px !important;
       box-sizing: border-box !important;
     }
     #cadastrosGrid .grid-table td.grid-actions,
     #cadastrosGrid .grid-actions,
     #cadastrosGrid td:last-child {
-      width: 124px !important; min-width: 124px !important; max-width: 124px !important;
-      padding: 8px !important;
+      width: 300px !important;
+      min-width: 280px !important;
+      max-width: 340px !important;
+      padding: 8px 10px !important;
       box-sizing: border-box !important;
-      display: flex !important; justify-content: flex-end !important; align-items: center !important; gap: 6px !important;
-      overflow: hidden !important;
+      display: flex !important;
+      flex-wrap: wrap !important;
+      justify-content: flex-end !important;
+      align-items: center !important;
+      gap: 6px !important;
+      overflow: visible !important;
     }
-    /* Garante alinhamento à direita do grupo de botões (fallback para tabelas) */
-    #cadastrosGrid .grid-table td.grid-actions > *:first-child,
-    #cadastrosGrid td:last-child > *:first-child {
-      margin-left: auto !important;
+    #cadastrosGrid .btn-usar-bolsao,
+    #cadastrosGrid .btn-copia-bolsao {
+      display: inline-flex !important;
+      align-items: center !important;
+      justify-content: center !important;
+      flex-shrink: 0 !important;
+      height: 32px !important;
+      min-height: 32px !important;
+      padding: 0 10px !important;
+      margin: 0 !important;
+      border-radius: 8px !important;
+      font-size: 12px !important;
+      font-weight: 600 !important;
+      line-height: 1 !important;
+      white-space: nowrap !important;
+      border: 1px solid #cbd5e1 !important;
+      background: #f8fafc !important;
+      color: #334155 !important;
+      box-shadow: none !important;
+    }
+    #cadastrosGrid .btn-usar-bolsao:hover,
+    #cadastrosGrid .btn-copia-bolsao:hover {
+      background: #e2e8f0 !important;
+      color: #0f172a !important;
+    }
+    #cadastrosGrid .btn-usar-bolsao.is-ligado,
+    #cadastrosGrid .btn-usar-bolsao[disabled] {
+      background: #ecfdf5 !important;
+      border-color: #a7f3d0 !important;
+      color: #047857 !important;
+      cursor: default !important;
+    }
+    html[data-theme="dark"] #cadastrosGrid .btn-usar-bolsao,
+    html[data-theme="dark"] #cadastrosGrid .btn-copia-bolsao {
+      background: #1e293b !important;
+      border-color: #475569 !important;
+      color: #e2e8f0 !important;
     }
 
     .imp-end-table { width: 100%; border-collapse: collapse; font-size: 13px; }
@@ -2230,6 +2272,6 @@
   <script src="/js/i18n-web.js"></script>
   <script src="/js/log-helper.js"></script>
   <script src="/js/init-overlay-helper.js"></script>
-  <script src="js/script.js?v=20261126bolsao" defer></script>
+  <script src="js/script.js?v=20261127semProprio4" defer></script>
 </body>
 </html>

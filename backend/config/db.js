@@ -103,6 +103,10 @@ async function createTransaction(poolInstance) {
       await client.query('ROLLBACK');
       client.release();
     },
+    /** SQL PostgreSQL nativo ($1, $2, …) na mesma conexão da transação. */
+    async queryPg(sqlText, params = []) {
+      return client.query(sqlText, params);
+    },
     request() {
       const inputs = {};
       return {

@@ -2764,6 +2764,14 @@ body[data-theme="dark"] .viagens-container .switch-logs-empty {
   border-color: #334155;
   box-shadow: 0 4px 6px -1px rgba(0,0,0,0.3);
 }
+[data-theme="dark"] h2.form-panel-titulo,
+[data-theme="dark"] h2.form-panel-titulo > i.bx,
+[data-theme="dark"] .saas-op-container .filtros-box h2.form-panel-titulo,
+[data-theme="dark"] .saas-op-container .filtros-box h2.form-panel-titulo > i.bx,
+[data-theme="dark"] .atlas-pay-container .filtros-box h2.form-panel-titulo,
+[data-theme="dark"] .atlas-pay-container .filtros-box h2.form-panel-titulo > i.bx {
+  color: #f1f5f9 !important;
+}
 [data-theme="dark"] .saas-op-container .filtros-box h3 {
   color: #f1f5f9;
 }

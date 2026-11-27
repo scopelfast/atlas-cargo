@@ -250,6 +250,7 @@ $psql = "C:\Program Files\PostgreSQL\18\bin\psql.exe"
 & $psql -h localhost -U atlas -d atlas_cargo_prd -f backend\scripts\cadastro_tenant_vinculo_postgres.sql
 & $psql -h localhost -U atlas -d atlas_cargo_prd -f backend\scripts\recuperacao_senha_log_postgres.sql
 & $psql -h localhost -U atlas -d atlas_cargo_prd -f backend\scripts\saas_pedido_acesso_postgres.sql
+& $psql -h localhost -U atlas -d atlas_cargo_prd -f backend\scripts\financeiro_atlas_pay_postgres.sql
 ```
 
 Se o usuário do banco nessa máquina não for `atlas`, use o usuário do `.env`.

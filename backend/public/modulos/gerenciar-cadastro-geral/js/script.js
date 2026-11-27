@@ -1356,32 +1356,34 @@
 
     gridTab = new window.GridEditor({
       container: '#cadastrosGrid',
-      actionsWidth: '220px',
+      actionsWidth: '300px',
       columns: [
-        { field: 'CDCADASTRO', header: 'Código', editable: false, isId: true, width: '12%' },
-        { field: 'TIPO_E_CADASTRO', header: 'Tipo & Cadastro', editable: false, width: '48%' },
+        { field: 'CDCADASTRO', header: 'Código', editable: false, isId: true, width: '10%' },
+        { field: 'TIPO_E_CADASTRO', header: 'Tipo & Cadastro', editable: false, width: '42%' },
         {
           field: 'TIPO_TRANSPORTE_BR_NOME',
           header: 'Tipo BR',
           editable: false,
-          width: '28%',
+          width: '22%',
           format: (val) => val || '-'
         },
-        { field: 'FGACTIVE', header: 'Situação', editable: true, type: 'select', width: '12%', align: 'right',
+        { field: 'FGACTIVE', header: 'Situação', editable: true, type: 'select', width: '10%', align: 'right',
           options: [ { value: 'S', label: 'Ativo' }, { value: 'N', label: 'Inativo' } ],
           format: (val) => val === 'S' ? '✓ Ativo' : '✗ Inativo'
         }
       ],
       apiEndpoint: '/api/cadastros-gerais',
-      // Ações customizadas: botão do WhatsApp
+      // Ações: bolsão (Usar / Próprio) + WhatsApp — coluna larga o bastante para não cobrir Ver/Excluir
       customActions: (row) => {
         let html = '';
         const bolsao = row.BOLSAO === true || row.BOLSAO === 'S';
         if (bolsao) {
           const id = row.CDCADASTRO != null ? String(row.CDCADASTRO) : '';
           const ja = row.VINCULADO === true;
-          html += `<button type="button" class="btn btn-usar-bolsao" data-id="${id}" title="Ligar esta ficha à sua empresa, sem criar outro login">${ja ? 'Ligado' : 'Usar'}</button>`;
-          html += `<button type="button" class="btn btn-copia-bolsao" data-id="${id}" title="Criar um cadastro só da sua empresa, com outro celular">Próprio</button>`;
+          html +=
+            `<button type="button" class="btn btn-usar-bolsao${ja ? ' is-ligado' : ''}" data-id="${id}"` +
+            (ja ? ' disabled' : '') +
+            ` title="Ligar esta ficha à sua empresa. Mantém o mesmo celular.">${ja ? 'Ligado' : 'Usar'}</button>`;
         }
         const celular = row.NRCELULAR;
         if (!celular) return html;
@@ -1390,7 +1392,10 @@
         // NRCELULAR já é gravado com DDI (ex.: 5545999999999 ou 595981123456); usar como está
         const numWa = numeroLimpo.length >= 12 ? numeroLimpo : ('55' + numeroLimpo);
         const whatsappLink = `https://wa.me/${numWa}`;
-        return html + `<a href="${whatsappLink}" target="_blank" rel="noopener noreferrer" class="btn grid-btn-whatsapp" title="Abrir WhatsApp">💬</a>`;
+        return (
+          html +
+          `<a href="${whatsappLink}" target="_blank" rel="noopener noreferrer" class="btn grid-btn-whatsapp" title="Abrir WhatsApp">💬</a>`
+        );
       },
       // Ao clicar em editar dentro do Grid, abrir o formulário de edição
       onBeforeEdit: async (id) => {
@@ -2014,8 +2019,7 @@
         </div>
         <div class="actions">
           ${bolsao
-            ? `<button type="button" class="btn btn-usar-bolsao" data-id="${cadastroId}">${cg.VINCULADO ? 'Ligado' : 'Usar na minha empresa'}</button>
-               <button type="button" class="btn btn-copia-bolsao" data-id="${cadastroId}">Cadastro próprio</button>
+            ? `<button type="button" class="btn btn-usar-bolsao${cg.VINCULADO ? ' is-ligado' : ''}" data-id="${cadastroId}"${cg.VINCULADO ? ' disabled' : ''}>${cg.VINCULADO ? 'Ligado' : 'Usar na minha empresa'}</button>
                <button class="btn edit" data-id="${cadastroId}">Ver</button>`
             : `<button class="btn edit" data-id="${cadastroId}">Editar</button>
                <button class="btn delete" data-id="${cadastroId}">Excluir</button>`}
@@ -2048,14 +2052,16 @@
       }
 
       if (cadastro) {
-        cadastroEmBolsao = cadastro.BOLSAO === true || cadastro.BOLSAO === 'S';
+        const ehBolsao = cadastro.BOLSAO === true || cadastro.BOLSAO === 'S';
+        const jaVinculado = !!cadastro.VINCULADO;
+        aplicarModoConsultaBolsao(ehBolsao, jaVinculado);
         const avisoBolsao = document.getElementById('avisoBolsaoCadastro');
         if (avisoBolsao) {
-          if (cadastroEmBolsao) {
+          if (ehBolsao) {
             avisoBolsao.style.display = 'block';
-            avisoBolsao.textContent = cadastro.VINCULADO
-              ? 'Bolsão do Atlas, já ligado à sua empresa. Os dados pessoais continuam na ficha compartilhada. Classes gravadas aqui valem só para a sua torre.'
-              : 'Bolsão do Atlas. Esta ficha é consulta. Use Usar na minha empresa, ou Cadastro próprio com outro celular.';
+            avisoBolsao.textContent = jaVinculado
+              ? 'Bolsão do Atlas, já ligado à sua empresa. Esta ficha é consulta — não use Salvar. Classes Frota gravadas na aba valem só para a sua torre.'
+              : 'Bolsão do Atlas. Esta ficha é consulta. Use Usar na minha empresa para ligar com o mesmo celular.';
           } else {
             avisoBolsao.style.display = 'none';
             avisoBolsao.textContent = '';
@@ -2594,12 +2600,31 @@
   
   let cadastroFormSubmitting = false;
   let cadastroEmBolsao = false;
+  let cadastroBolsaoVinculado = false;
+
+  function aplicarModoConsultaBolsao(ativo, vinculado) {
+    cadastroEmBolsao = !!ativo;
+    cadastroBolsaoVinculado = !!vinculado;
+    const form = document.getElementById('cadastroForm');
+    if (!form) return;
+    const btnSalvar = form.querySelector('.form-actions button[type="submit"]');
+    if (btnSalvar) {
+      btnSalvar.style.display = ativo ? 'none' : '';
+      btnSalvar.disabled = !!ativo;
+    }
+  }
+
   cadastroForm?.addEventListener('submit', async (e) => {
     e.preventDefault();
     e.stopImmediatePropagation();
     if (cadastroFormSubmitting) return;
     if (cadastroEmBolsao) {
-      showMessage('A ficha do bolsão não é alterada. Use Usar na minha empresa, ou Cadastro próprio com outro celular.', 'error');
+      showMessage(
+        cadastroBolsaoVinculado
+          ? 'A ficha compartilhada do bolsão não é alterada aqui. Use a aba Classes Frota (ou Gerenciar Classes) para gravar classes só da sua torre.'
+          : 'A ficha do bolsão não é alterada. Use Usar na minha empresa para ligar com o mesmo celular.',
+        'error'
+      );
       return;
     }
     cadastroFormSubmitting = true;
@@ -2908,7 +2933,7 @@ document.getElementById('filtroRastreado').value = '';
 
   document.getElementById('btnVoltarFiltros')?.addEventListener('click', async () => await showTab('filtros'));
   document.getElementById('btnNovoRegistro')?.addEventListener('click', () => {
-    cadastroEmBolsao = false;
+    aplicarModoConsultaBolsao(false, false);
     const avisoBolsaoNovo = document.getElementById('avisoBolsaoCadastro');
     if (avisoBolsaoNovo) { avisoBolsaoNovo.style.display = 'none'; avisoBolsaoNovo.textContent = ''; }
     cadastroForm?.reset();
@@ -2983,7 +3008,7 @@ document.getElementById('filtroRastreado').value = '';
     }, 100);
   });
   document.getElementById('btnNovoRegistroGrid')?.addEventListener('click', () => {
-    cadastroEmBolsao = false;
+    aplicarModoConsultaBolsao(false, false);
     const avisoBolsaoGrid = document.getElementById('avisoBolsaoCadastro');
     if (avisoBolsaoGrid) { avisoBolsaoGrid.style.display = 'none'; avisoBolsaoGrid.textContent = ''; }
     cadastroForm?.reset();
@@ -4278,43 +4303,41 @@ document.getElementById('filtroRastreado').value = '';
     });
   }
 
-  document.addEventListener('click', async (e) => {
-    const usar = e.target.closest('.btn-usar-bolsao');
-    const copia = e.target.closest('.btn-copia-bolsao');
-    if (!usar && !copia) return;
+  // Um único listener no document (módulo reinjeta o script a cada abertura).
+  window.__cgBolsaoOnClick = async function (e) {
+    const usar = e.target.closest && e.target.closest('.btn-usar-bolsao');
+    if (!usar) return;
     e.preventDefault();
-    const id = (usar || copia).getAttribute('data-id');
+    e.stopPropagation();
+    const id = usar.getAttribute('data-id');
     if (!id) return;
-    if (usar) {
-      try {
-        const r = await fetch('/api/cadastros-gerais/' + encodeURIComponent(id) + '/usar-bolsao', {
-          method: 'POST',
-          headers: getAuthHeaders({ 'Content-Type': 'application/json' }),
-          body: '{}'
-        });
-        const data = await r.json().catch(() => ({}));
-        showMessage(data.message || data.error || 'Não foi possível ligar o motorista.', r.ok ? 'success' : 'error');
-        if (r.ok) applyFilters('grid');
-      } catch (err) {
-        showMessage('Erro ao ligar o motorista.', 'error');
-      }
+    if (usar.disabled || usar.classList.contains('is-ligado')) {
+      showMessage('Já está ligado à sua empresa. O celular do bolsão continua o mesmo.', 'success');
       return;
     }
-    const celular = window.prompt('Celular desta empresa, com DDD. Precisa ser diferente do celular do bolsão.');
-    if (!celular) return;
+    if (window.__cgBolsaoUsarBusy) return;
+    window.__cgBolsaoUsarBusy = true;
     try {
-      const r = await fetch('/api/cadastros-gerais/' + encodeURIComponent(id) + '/cadastro-proprio', {
+      const r = await fetch('/api/cadastros-gerais/' + encodeURIComponent(id) + '/usar-bolsao', {
         method: 'POST',
         headers: getAuthHeaders({ 'Content-Type': 'application/json' }),
-        body: JSON.stringify({ celular })
+        body: '{}'
       });
       const data = await r.json().catch(() => ({}));
-      showMessage(data.message || data.error || 'Não foi possível criar o cadastro.', r.ok ? 'success' : 'error');
-      if (r.ok) applyFilters('grid');
+      showMessage(data.message || data.error || 'Não foi possível ligar o motorista.', r.ok ? 'success' : 'error');
+      if (r.ok && typeof applyFilters === 'function') applyFilters('grid');
     } catch (err) {
-      showMessage('Erro ao criar o cadastro próprio.', 'error');
+      showMessage('Erro ao ligar o motorista.', 'error');
+    } finally {
+      window.__cgBolsaoUsarBusy = false;
     }
-  });
+  };
+  if (!window.__cgBolsaoClickBound) {
+    window.__cgBolsaoClickBound = true;
+    document.addEventListener('click', function (e) {
+      if (typeof window.__cgBolsaoOnClick === 'function') window.__cgBolsaoOnClick(e);
+    });
+  }
 
   // =======================
   // ABA VALIDADES

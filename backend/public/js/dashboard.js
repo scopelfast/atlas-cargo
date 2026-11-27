@@ -1698,7 +1698,11 @@
       'estoque-transferencias': 'transfer',
       'estoque-relatorios': 'bar-chart-alt-2',
       'estoque-valor': 'money',
-      'estoque-cobranca': 'receipt'
+      'estoque-cobranca': 'receipt',
+      'gerenciar-configuracoes': 'cog',
+      'gerenciar-tenants-saas': 'layer',
+      'gerenciar-disparo-whatsapp': 'message-rounded-dots',
+      'atlas-pay': 'credit-card'
     };
     if (prog && Object.prototype.hasOwnProperty.call(iconsPorPrograma, prog)) {
       return iconsPorPrograma[prog];
@@ -2018,7 +2022,8 @@
           '/js/log-helper.js': () => typeof window.logAberturaTela === 'function',
           '/js/init-overlay-helper.js': () => typeof window.executarInitSQLPadrao === 'function' && typeof window.hideLoadingOverlayInitSQL === 'function',
           // Não usar "true": o <script> do HTML já está no DOM antes de executar; "já no DOM" !== "já executou".
-          '/js/grid-editor.js': () => typeof window.GridEditor !== 'undefined',
+          '/js/grid-editor.js': () =>
+            typeof window.GridEditor !== 'undefined' && window._gridEditorVersion === '20261127noDash',
           '/js/permissions.js': () => typeof window.Permissions !== 'undefined'
         };
         const normalizeScriptSrc = (src) => {

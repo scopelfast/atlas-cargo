@@ -1,0 +1,1923 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <title>Atlas Pay</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="/css/modulos.css" />
+  <link rel="stylesheet" href="/css/dark-mode.css" />
+  <link href="https://unpkg.com/boxicons@2.1.4/css/boxicons.min.css" rel="stylesheet" />
+  <style>
+    /* Atlas Pay — mesmo padrão de Tenants SaaS / Situações de Viagem */
+    .atlas-pay-container {
+      padding: 20px;
+      font-family: 'Plus Jakarta Sans', 'Segoe UI', system-ui, sans-serif;
+      width: 100%;
+      max-width: 100%;
+      box-sizing: border-box;
+    }
+    .atlas-pay-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      gap: 12px;
+      margin-bottom: 25px;
+      padding-bottom: 15px;
+      border-bottom: 2px solid var(--light-gray, #e2e8f0);
+    }
+    .atlas-pay-header-actions {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      align-items: center;
+      flex-shrink: 0;
+    }
+    .atlas-pay-manual-btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 10px 16px;
+      border-radius: 8px;
+      background: var(--ac-accent, #0ea5e9);
+      color: #fff !important;
+      font-size: 14px;
+      font-weight: 600;
+      text-decoration: none;
+      white-space: nowrap;
+      font-family: inherit;
+    }
+    .atlas-pay-manual-btn:hover { filter: brightness(1.08); }
+    html[data-theme='dark'] .atlas-pay-manual-btn { background: #0284c7; }
+    .atlas-pay-header h2 {
+      margin: 0;
+      color: var(--ac-primary, #0d2137);
+      font-size: 28px;
+      font-weight: 700;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+    .atlas-pay-header h2 i { color: inherit; }
+    .atlas-pay-info {
+      font-size: 14px;
+      line-height: 1.55;
+      color: var(--gray, #64748b);
+      margin: 8px 0 0;
+      max-width: 920px;
+    }
+    .atlas-pay-info strong { color: var(--dark, #1e293b); font-weight: 600; }
+
+    .atlas-pay-container .tabs.tabs-com-icones {
+      display: flex;
+      flex-wrap: wrap;
+      margin-bottom: 25px;
+      border-bottom: 2px solid var(--light-gray, #e2e8f0);
+      gap: 0;
+    }
+    .atlas-pay-container .tabs.tabs-com-icones .tab-btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 12px 20px;
+      border: none;
+      background: transparent;
+      color: #94a3b8;
+      font-weight: 600;
+      font-size: 15px;
+      cursor: pointer;
+      border-bottom: 2px solid transparent;
+      margin-bottom: -2px;
+      transition: color 0.2s, border-color 0.2s;
+      font-family: inherit;
+    }
+    .atlas-pay-container .tabs.tabs-com-icones .tab-btn i { font-size: 1.15rem; color: inherit; }
+    .atlas-pay-container .tabs.tabs-com-icones .tab-btn:hover { color: #64748b; }
+    .atlas-pay-container .tabs.tabs-com-icones .tab-btn.active {
+      color: var(--ac-primary, #0d2137);
+      border-bottom-color: var(--ac-primary, #0d2137);
+    }
+    .atlas-pay-container .tabs.tabs-com-icones .tab-btn.active i { color: var(--ac-primary, #0d2137); }
+
+    .tab-content { display: none; }
+    .tab-content.active { display: block; }
+
+    .atlas-pay-container .filtros-box {
+      background: var(--white, #fff);
+      border-radius: 12px;
+      padding: 25px;
+      box-shadow: var(--shadow, 0 4px 6px -1px rgba(0,0,0,0.08));
+      margin-bottom: 25px;
+      border: 1px solid var(--border, #e2e8f0);
+    }
+    /* Tenant: mesma faixa compacta em Contratos / Fechamento / Cobranças */
+    .atlas-pay-container .ap-agente-bar {
+      min-width: 0;
+    }
+    .atlas-pay-container .ap-agente-bar--strip {
+      margin: 0 0 16px;
+      padding: 12px 16px;
+      max-width: 420px;
+      border: 1px solid var(--border, #e2e8f0);
+      border-left: 4px solid var(--ac-accent, #0ea5e9);
+      border-radius: 10px;
+      background: var(--light-bg, #f8fafc);
+      box-sizing: border-box;
+    }
+    .atlas-pay-container .ap-agente-bar label {
+      display: block;
+      margin-bottom: 6px;
+      font-weight: 600;
+      font-size: 14px;
+      color: var(--dark, #1e293b);
+    }
+    /* Tenant à esquerda + conteúdo à direita (Fechamento / Cobranças) */
+    .atlas-pay-container .ap-tenant-topo-grid {
+      display: grid;
+      grid-template-columns: minmax(240px, 300px) minmax(0, 1fr);
+      gap: 18px 24px;
+      align-items: start;
+    }
+    .atlas-pay-container .ap-tenant-slot .ap-agente-bar--strip {
+      margin: 0;
+      max-width: none;
+      width: 100%;
+      height: 100%;
+      box-sizing: border-box;
+    }
+    #apAgenteHostResumo .ap-agente-bar--strip {
+      max-width: 480px;
+      margin: 0;
+    }
+    .atlas-pay-container .ap-tenant-topo-main h3 {
+      margin: 0 0 8px;
+    }
+    .atlas-pay-container .ap-tenant-topo-main .atlas-pay-info {
+      margin: 0 0 14px;
+    }
+    .atlas-pay-container .ap-fech-toolbar,
+    .atlas-pay-container .ap-cob-toolbar {
+      margin-top: 0;
+      display: flex;
+      flex-wrap: wrap;
+      align-items: flex-end;
+      gap: 12px 16px;
+    }
+    .atlas-pay-container .ap-fech-toolbar .filtros-actions,
+    .atlas-pay-container .ap-cob-toolbar .filtros-actions {
+      padding-top: 22px;
+      margin: 0;
+      justify-content: flex-start;
+    }
+    .atlas-pay-container .ap-cob-toolbar .filtros-grid {
+      flex: 1 1 280px;
+      margin-bottom: 0;
+      min-width: 0;
+    }
+    .atlas-pay-container .ap-tenant-topo-grid--sem-tenant {
+      grid-template-columns: 1fr;
+    }
+    .atlas-pay-container .ap-tenant-topo-grid--sem-tenant .ap-tenant-slot {
+      display: none;
+    }
+    @media (max-width: 900px) {
+      .atlas-pay-container .ap-tenant-topo-grid {
+        grid-template-columns: 1fr;
+      }
+    }
+    .atlas-pay-container .filtros-box h3 {
+      margin: 0 0 20px 0;
+      font-size: 18px;
+      font-weight: 600;
+      color: var(--ac-primary, #0d2137);
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .atlas-pay-container .filtros-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+      gap: 14px;
+      margin-bottom: 8px;
+    }
+    .atlas-pay-container .filtros-grid label {
+      display: block;
+      margin-bottom: 6px;
+      font-weight: 600;
+      color: var(--dark, #1e293b);
+      font-size: 14px;
+    }
+    .atlas-pay-container .form-control {
+      width: 100%;
+      padding: 10px 12px;
+      border: 1px solid var(--border, #e2e8f0);
+      border-radius: 8px;
+      font-size: 15px;
+      font-family: inherit;
+      box-sizing: border-box;
+      background: #fff;
+      color: #0d2137;
+    }
+    .filtros-actions {
+      display: flex;
+      gap: 10px;
+      justify-content: flex-end;
+      flex-wrap: wrap;
+      margin-top: 15px;
+    }
+    .btn-filtro {
+      display: inline-flex;
+      align-items: center;
+      justify-content: flex-start;
+      gap: 8px;
+      padding: 12px 22px;
+      border: none;
+      border-radius: 10px;
+      font-size: 15px;
+      font-weight: 600;
+      line-height: 1.2;
+      cursor: pointer;
+      font-family: inherit;
+      transition: transform 0.15s, box-shadow 0.2s;
+    }
+    .btn-filtro:hover { transform: translateY(-1px); }
+    .btn-filtro i,
+    .btn-filtro i.bx {
+      font-size: 1.15rem;
+      line-height: 1;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      flex-shrink: 0;
+      /* Boxicons costuma sentar um pouco acima do texto */
+      transform: translateY(1px);
+    }
+    .btn-filtro-limpar { background: #f1f5f9; color: #475569; border: 1px solid #e2e8f0; }
+    .btn-filtro-limpar:hover { background: #e2e8f0; color: #334155; box-shadow: 0 2px 8px rgba(0,0,0,0.06); }
+    .btn-filtro-aplicar { background: var(--ac-accent, #0ea5e9); color: #fff; box-shadow: 0 2px 8px rgba(14, 165, 233, 0.25); }
+    .btn-filtro-aplicar:hover { background: var(--ac-accent-hover, #0284c7); box-shadow: 0 4px 12px rgba(14, 165, 233, 0.35); }
+    .btn-filtro-novo { background: var(--success, #059669); color: #fff; box-shadow: 0 2px 8px rgba(5, 150, 105, 0.25); }
+    .btn-filtro-novo:hover { background: #047857; box-shadow: 0 4px 12px rgba(5, 150, 105, 0.35); }
+    /* Ação em linha de tabela — mesmo padrão Cidades / Tenants SaaS */
+    .atlas-pay-container .btn-filtro.btn-sm,
+    .ap-modal .btn-filtro.btn-sm {
+      padding: 8px 14px;
+      font-size: 13px;
+      border-radius: 8px;
+      gap: 6px;
+    }
+    .atlas-pay-container .btn-filtro.btn-sm i,
+    .ap-modal .btn-filtro.btn-sm i { font-size: 1rem; }
+    .estatisticas-table td .btn-filtro { white-space: nowrap; }
+
+    .wms-stat-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 16px; margin-bottom: 20px; }
+    .dashboard-stat-card {
+      background: #fff;
+      border-radius: 12px;
+      padding: 20px 22px;
+      box-shadow: 0 4px 14px rgba(15,23,42,.05);
+      border: 1px solid #e2e8f0;
+      display: flex;
+      align-items: center;
+      gap: 16px;
+      border-left: 4px solid #0ea5e9;
+      min-height: 96px;
+    }
+    .dashboard-stat-card.primary { border-left-color: #0ea5e9; }
+    .dashboard-stat-card.success { border-left-color: #059669; }
+    .dashboard-stat-card.warning { border-left-color: #f39c12; }
+    .dashboard-stat-card.info { border-left-color: #64748b; }
+    .stat-card-icon {
+      width: 52px; height: 52px; border-radius: 12px; display: flex; align-items: center; justify-content: center;
+      font-size: 24px; color: #fff; flex-shrink: 0;
+    }
+    .dashboard-stat-card.primary .stat-card-icon { background: linear-gradient(135deg, #0ea5e9, #0284c7); }
+    .dashboard-stat-card.success .stat-card-icon { background: linear-gradient(135deg, #059669, #047857); }
+    .dashboard-stat-card.warning .stat-card-icon { background: linear-gradient(135deg, #f39c12, #d97706); }
+    .dashboard-stat-card.info .stat-card-icon { background: linear-gradient(135deg, #64748b, #475569); }
+    .stat-card-content h4 { margin: 0 0 6px; color: #64748b; font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: .04em; }
+    .stat-card-content .stat-sub { margin: 4px 0 0; font-size: 12px; color: #64748b; font-weight: 500; }
+    html[data-theme="dark"] .stat-card-content .stat-sub { color: #94a3b8; }
+    .stat-value { font-size: 1.45rem; font-weight: 800; color: #0d2137; margin: 0; line-height: 1.2; }
+
+    /* Alinhado ao padrão GridEditor / Gerenciar Usuários (grid-table) — também no modal */
+    .estatisticas-table-wrap,
+    .atlas-pay-container .grid-container,
+    .ap-modal .grid-container,
+    .ap-modal .estatisticas-table-wrap {
+      overflow: auto;
+      border: 1px solid var(--border, #e2e8f0);
+      border-radius: 12px;
+      background: #fff;
+      max-height: 480px;
+    }
+    /* Fechamentos: cabe na largura do painel, sem barra horizontal */
+    #fechamentosGrid.grid-container {
+      overflow-x: hidden;
+      overflow-y: auto;
+    }
+    #fechamentosGrid .grid-table {
+      table-layout: fixed;
+      width: 100%;
+    }
+    #fechamentosGrid .grid-table th,
+    #fechamentosGrid .grid-table td {
+      padding: 10px 8px;
+      font-size: 13px;
+    }
+    #fechamentosGrid .grid-table th:first-child,
+    #fechamentosGrid .grid-table td:first-child {
+      white-space: nowrap;
+    }
+    #fechamentosGrid .ap-fech-tabela-uso {
+      display: block;
+      max-width: 100%;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+      font-size: 12px;
+      line-height: 1.35;
+    }
+    #fechamentosGrid .grid-actions,
+    #fechamentosGrid .grid-actions-header {
+      width: 52px;
+      min-width: 52px;
+      max-width: 52px;
+      padding-left: 4px;
+      padding-right: 4px;
+    }
+    .atlas-pay-container .estatisticas-table,
+    .atlas-pay-container .grid-table,
+    .ap-modal .estatisticas-table,
+    .ap-modal .grid-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 14px;
+      font-family: 'Plus Jakarta Sans', 'Segoe UI', system-ui, sans-serif;
+    }
+    .atlas-pay-container .estatisticas-table th,
+    .atlas-pay-container .estatisticas-table td,
+    .atlas-pay-container .grid-table th,
+    .atlas-pay-container .grid-table td,
+    .ap-modal .estatisticas-table th,
+    .ap-modal .estatisticas-table td,
+    .ap-modal .grid-table th,
+    .ap-modal .grid-table td {
+      padding: 12px 14px;
+      border-bottom: 1px solid var(--border, #e2e8f0);
+      text-align: left;
+      color: var(--dark, #1e293b);
+      vertical-align: middle;
+    }
+    .atlas-pay-container .estatisticas-table thead,
+    .atlas-pay-container .grid-table thead,
+    .ap-modal .estatisticas-table thead,
+    .ap-modal .grid-table thead {
+      background: linear-gradient(135deg, var(--primary, #0d2137) 0%, #2c3e8f 100%);
+      color: #fff;
+    }
+    .atlas-pay-container .estatisticas-table th,
+    .atlas-pay-container .grid-table th,
+    .ap-modal .estatisticas-table th,
+    .ap-modal .grid-table th {
+      position: sticky;
+      top: 0;
+      z-index: 1;
+      font-weight: 700;
+      color: #fff;
+      font-size: 13px;
+      text-align: left;
+    }
+    .atlas-pay-container .estatisticas-table tbody tr:hover,
+    .atlas-pay-container .grid-table tbody tr:hover,
+    .ap-modal .estatisticas-table tbody tr:hover,
+    .ap-modal .grid-table tbody tr:hover {
+      background: #f8fafc;
+    }
+
+    .ap-grupo { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+    @media (max-width: 900px) { .ap-grupo { grid-template-columns: 1fr; } }
+    .ap-comp-row {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      margin-bottom: 12px;
+      padding-bottom: 10px;
+      border-bottom: 1px dashed #e2e8f0;
+    }
+    .ap-comp-row:last-of-type { border-bottom: none; }
+    .ap-comp-fields {
+      display: grid;
+      grid-template-columns: minmax(140px, 1.1fr) minmax(160px, 1.2fr) auto;
+      gap: 10px;
+      align-items: end;
+    }
+    .ap-comp-fields > div { min-width: 0; }
+    .ap-comp-fields label {
+      display: block;
+      margin-bottom: 4px;
+      font-size: 12px;
+      color: #64748b;
+    }
+    .ap-comp-fields .ap-rm {
+      height: 38px;
+      width: 42px;
+      padding: 0;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+    }
+    .ap-comp-hint {
+      font-size: 12px;
+      color: #64748b;
+      line-height: 1.35;
+      min-height: 1.35em;
+    }
+    .ap-comp-note {
+      font-size: 12px;
+      color: #64748b;
+      margin: 0 0 12px;
+      line-height: 1.4;
+    }
+    .ap-badge {
+      display: inline-block;
+      padding: 3px 8px;
+      border-radius: 999px;
+      font-size: 11px;
+      font-weight: 700;
+    }
+    .ap-badge.aberta { background: #fff7ed; color: #c2410c; }
+    .ap-badge.paga { background: #ecfdf5; color: #047857; }
+    .ap-badge.cancelada { background: #f1f5f9; color: #64748b; }
+    .ap-badge.on { background: #ecfdf5; color: #047857; }
+    .ap-badge.off { background: #f1f5f9; color: #64748b; }
+    .ap-badge.warn { background: #fef3c7; color: #b45309; }
+    .ap-badge.com_excecoes,
+    .ap-badge.alerta { background: #fef3c7; color: #b45309; }
+    .ap-badge.rascunho { background: #f1f5f9; color: #475569; }
+    .ap-badge.aguardando_aprovacao { background: #e0f2fe; color: #0369a1; }
+    .ap-badge.aprovado { background: #ecfdf5; color: #047857; }
+    .ap-badge.cobrado { background: #d1fae5; color: #065f46; }
+    /* Feedback = toast padrão. Esconde faixas verdes/vermelhas no meio da tela. */
+    .ap-msg-err, .ap-msg-ok, #msgContrato, #msgFechamento, #msgBaixa { display: none !important; }
+    .ap-detalhe-pre {
+      white-space: pre-wrap;
+      font-size: 12px;
+      margin: 0;
+      font-family: ui-monospace, Consolas, monospace;
+      color: var(--dark, #1e293b);
+    }
+    .ap-modal {
+      position: fixed;
+      inset: 0;
+      z-index: 10050;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 16px;
+    }
+    .ap-modal-backdrop {
+      position: absolute;
+      inset: 0;
+      background: rgba(15, 23, 42, 0.55);
+    }
+    .ap-modal-panel {
+      position: relative;
+      z-index: 1;
+      width: min(720px, 100%);
+      max-height: min(88vh, 900px);
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+      background: #fff;
+      border-radius: 14px;
+      box-shadow: 0 20px 50px rgba(0,0,0,.28);
+      padding: 18px 20px 16px;
+      font-family: 'Plus Jakarta Sans', 'Segoe UI', system-ui, sans-serif;
+    }
+    .ap-modal-panel-wide { width: min(920px, 100%); }
+    /* Fechamento: mais largo para a grid de contratos caber sem barra */
+    #apFechModal .ap-modal-panel-wide {
+      width: min(1180px, 96vw);
+      max-height: min(92vh, 980px);
+    }
+    #apFechModal .ap-fech-iv-wrap {
+      overflow-x: hidden;
+      overflow-y: auto;
+      max-height: 280px;
+    }
+    #apFechModal .ap-fech-iv-table {
+      table-layout: fixed;
+      width: 100%;
+    }
+    #apFechModal .ap-fech-iv-table th,
+    #apFechModal .ap-fech-iv-table td {
+      padding: 8px 10px;
+      font-size: 13px;
+      vertical-align: top;
+    }
+    #apFechModal .ap-fech-iv-table .col-ctr { width: 88px; white-space: nowrap; }
+    #apFechModal .ap-fech-iv-table .col-regra { width: 88px; }
+    #apFechModal .ap-fech-iv-table .col-de { width: 118px; white-space: nowrap; }
+    #apFechModal .ap-fech-iv-table .col-ate { width: 148px; white-space: nowrap; }
+    #apFechModal .ap-fech-iv-table .col-dias { width: 52px; text-align: right; }
+    #apFechModal .ap-fech-iv-table .ap-fech-tabela-uso {
+      display: block;
+      max-width: 100%;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+      word-break: normal;
+    }
+    /* Modal fica fora de .atlas-pay-container — precisa do mesmo padrão de campo */
+    .ap-modal .form-control,
+    .ap-modal select.form-control,
+    .ap-modal input.form-control,
+    .ap-modal textarea.form-control {
+      width: 100% !important;
+      padding: 10px 12px !important;
+      border: 1px solid #e2e8f0 !important;
+      border-radius: 8px !important;
+      font-size: 15px !important;
+      font-family: inherit !important;
+      box-sizing: border-box !important;
+      background: #fff !important;
+      color: #0d2137 !important;
+      appearance: auto;
+      -webkit-appearance: menulist;
+      line-height: 1.35;
+      min-height: 42px;
+    }
+    .ap-modal .form-control:focus {
+      outline: none !important;
+      border-color: #0ea5e9 !important;
+      box-shadow: 0 0 0 3px rgba(14, 165, 233, 0.2) !important;
+    }
+    .ap-modal label {
+      display: block;
+      margin: 0 0 6px;
+      font-weight: 600;
+      font-size: 13px;
+      color: #334155;
+    }
+    .ap-modal .ap-field { margin-bottom: 12px; }
+    .ap-modal .ap-field:last-child { margin-bottom: 0; }
+    html[data-theme="dark"] .ap-modal .form-control,
+    html[data-theme="dark"] .ap-modal select.form-control,
+    html[data-theme="dark"] .ap-modal input.form-control {
+      background: #0f172a !important;
+      border-color: #334155 !important;
+      color: #e2e8f0 !important;
+    }
+    html[data-theme="dark"] .ap-modal label { color: #94a3b8 !important; }
+    .ap-fech-kpi-mini {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+      gap: 8px;
+      margin: 12px 0;
+    }
+    .ap-fech-kpi-mini .ap-cob-field span { font-size: 15px; }
+    .ap-fech-sec { margin-top: 14px; }
+    .ap-fech-sec h4 {
+      margin: 0 0 8px;
+      font-size: 13px;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+      color: #64748b;
+    }
+    .ap-fech-next {
+      margin-top: 12px;
+      padding: 14px 16px;
+      border-radius: 12px;
+      border: 1px solid #e2e8f0;
+      background: #f8fafc;
+    }
+    .ap-fech-next.err {
+      border-color: #fca5a5;
+      background: #fef2f2;
+    }
+    .ap-fech-next.warn {
+      border-color: #fcd34d;
+      background: #fffbeb;
+    }
+    .ap-fech-next.ok {
+      border-color: #6ee7b7;
+      background: #ecfdf5;
+    }
+    .ap-fech-next-title {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-weight: 700;
+      font-size: 14px;
+      color: #0f172a;
+      margin-bottom: 6px;
+    }
+    .ap-fech-next p {
+      margin: 0 0 10px;
+      font-size: 13px;
+      line-height: 1.45;
+      color: #475569;
+    }
+    .ap-fech-next .ap-fech-next-actions {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+    }
+    .ap-fech-pend-list {
+      list-style: none;
+      margin: 0;
+      padding: 0;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+    .ap-fech-pend-list li {
+      padding: 10px 12px;
+      border-radius: 10px;
+      background: #fff;
+      border: 1px solid #fecaca;
+      font-size: 13px;
+      color: #7f1d1d;
+      line-height: 1.4;
+    }
+    .ap-fech-pend-list li strong { display: block; margin-bottom: 2px; color: #991b1b; }
+    .ap-fech-toolbar {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: flex-end;
+      gap: 12px 16px;
+    }
+    .ap-fech-mes-wrap {
+      flex: 0 0 auto;
+      width: 220px;
+      max-width: 100%;
+    }
+    .ap-fech-mes-wrap label {
+      display: block;
+      margin-bottom: 4px;
+      font-size: 12px;
+      color: #64748b;
+    }
+    .ap-fech-mes {
+      width: 220px !important;
+      max-width: 100%;
+    }
+    .ap-fech-periodo-bar {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: baseline;
+      gap: 8px 14px;
+      margin: 12px 0 4px;
+      padding: 12px 14px;
+      border-radius: 10px;
+      background: #f8fafc;
+      border: 1px solid #e2e8f0;
+      font-size: 14px;
+      color: #0f172a;
+    }
+    .ap-fech-periodo-bar strong {
+      font-size: 11px;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+      color: #64748b;
+    }
+    .ap-fech-periodo-bar .ap-fech-periodo-val {
+      font-weight: 700;
+      white-space: nowrap;
+    }
+    .ap-fech-periodo-bar em {
+      font-style: normal;
+      color: #64748b;
+      font-size: 13px;
+    }
+    .ap-modal-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      flex-shrink: 0;
+      margin-bottom: 0;
+      border-bottom: 1px solid #e2e8f0;
+      padding-bottom: 10px;
+      background: #fff;
+      z-index: 3;
+    }
+    .ap-modal-header h3 {
+      margin: 0;
+      font-size: 1.1rem;
+      color: var(--dark, #0f172a);
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .ap-modal-close {
+      border: none;
+      background: #f1f5f9;
+      color: #334155;
+      width: 36px;
+      height: 36px;
+      border-radius: 10px;
+      font-size: 22px;
+      line-height: 1;
+      cursor: pointer;
+      flex-shrink: 0;
+    }
+    .ap-modal-close:hover { background: #e2e8f0; }
+    .ap-modal-body {
+      font-size: 14px;
+      color: #334155;
+      flex: 1 1 auto;
+      min-height: 0;
+      overflow-y: auto;
+      -webkit-overflow-scrolling: touch;
+      padding: 12px 0 4px;
+    }
+    .ap-cob-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+      gap: 10px;
+      margin-bottom: 14px;
+    }
+    .ap-cob-field {
+      background: #f8fafc;
+      border: 1px solid #e2e8f0;
+      border-radius: 10px;
+      padding: 10px 12px;
+    }
+    .ap-cob-field strong {
+      display: block;
+      font-size: 11px;
+      text-transform: uppercase;
+      letter-spacing: 0.03em;
+      color: #64748b;
+      margin-bottom: 4px;
+    }
+    .ap-cob-field span { font-weight: 600; color: #0f172a; word-break: break-word; }
+    .ap-modal-actions {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      align-items: center;
+      flex-shrink: 0;
+      margin-top: 0;
+      padding-top: 12px;
+      border-top: 1px solid #e2e8f0;
+      background: #fff;
+      z-index: 3;
+    }
+    .ap-modal-actions .form-control { flex: 1 1 220px; max-width: 100%; }
+    .ap-modal-msg {
+      flex-shrink: 0;
+      margin-top: 8px;
+      background: #fff;
+    }
+    /* Fechamento: passos / diagnóstico no chrome (não rolam com o body) */
+    #apFechModal .ap-fech-steps {
+      flex-shrink: 0;
+      margin: 10px 0 0;
+    }
+    #apFechModal .ap-fech-diag {
+      flex-shrink: 0;
+    }
+    .ap-cob-events { margin: 0; padding-left: 18px; font-size: 13px; }
+    .ap-cob-events li { margin-bottom: 6px; }
+    tr.ap-row-sel td { background: #ecfdf5 !important; }
+    .ap-quem-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 12px;
+      margin-top: 10px;
+    }
+    @media (max-width: 900px) { .ap-quem-grid { grid-template-columns: 1fr; } }
+    .ap-quem-card {
+      border-radius: 12px;
+      padding: 14px 16px;
+      border: 1px solid #e2e8f0;
+      background: #f8fafc;
+    }
+    .ap-quem-card strong { display: block; margin-bottom: 6px; color: #0f172a; font-size: 14px; }
+    .ap-quem-card p { margin: 0 0 8px; font-size: 13px; color: #475569; line-height: 1.45; }
+    .ap-quem-card .ap-quem-meta { margin: 0; font-size: 12px; color: #64748b; }
+    .ap-quem-a { border-left: 4px solid #0ea5e9; }
+    .ap-quem-b { border-left: 4px solid #10b981; }
+    .ap-painel-grupo {
+      border: 1px solid #e2e8f0;
+      border-radius: 12px;
+      padding: 14px;
+      background: #fff;
+    }
+    .ap-painel-a { border-top: 3px solid #0ea5e9; }
+    .ap-painel-b { border-top: 3px solid #10b981; }
+    .ap-cob-resumo {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+      margin: 0 0 12px;
+    }
+    .ap-cob-chip {
+      flex: 1 1 220px;
+      border: 1px solid #e2e8f0;
+      border-radius: 10px;
+      padding: 10px 12px;
+      background: #fff;
+      font-size: 13px;
+      line-height: 1.4;
+      color: #334155;
+    }
+    .ap-cob-chip strong { display: block; font-size: 12px; color: #64748b; margin-bottom: 4px; }
+    .ap-cob-chip .ap-cob-chip-val {
+      display: block;
+      font-size: 18px;
+      font-weight: 700;
+      color: #0f172a;
+      margin: 0 0 6px;
+      line-height: 1.25;
+    }
+    .ap-cob-chip .ap-cob-chip-sub {
+      display: block;
+      font-size: 12px;
+      color: #64748b;
+      line-height: 1.4;
+    }
+    .ap-cob-chip-a { border-left: 4px solid #0ea5e9; }
+    .ap-cob-chip-b { border-left: 4px solid #10b981; }
+    .ap-badge-mod {
+      display: inline-block;
+      padding: 2px 8px;
+      border-radius: 999px;
+      font-size: 11px;
+      font-weight: 700;
+      letter-spacing: 0.02em;
+    }
+    .ap-badge-mod-a { background: #e0f2fe; color: #0369a1; }
+    .ap-badge-mod-b { background: #d1fae5; color: #047857; }
+    html[data-theme="dark"] .ap-cob-chip {
+      background: #0f172a;
+      border-color: #334155;
+      color: #e2e8f0;
+    }
+    html[data-theme="dark"] .ap-cob-chip .ap-cob-chip-val { color: #f8fafc; }
+    html[data-theme="dark"] .ap-badge-mod-a { background: #0c4a6e; color: #bae6fd; }
+    html[data-theme="dark"] .ap-badge-mod-b { background: #064e3b; color: #a7f3d0; }
+    .ap-painel-b.ap-painel-readonly {
+      background: #f8fafc;
+      opacity: 0.96;
+    }
+    .ap-painel-b.ap-painel-readonly .ap-comp-valor,
+    .ap-painel-b.ap-painel-readonly .ap-tipo {
+      background: #e2e8f0;
+      cursor: not-allowed;
+    }
+    html[data-theme="dark"] .ap-painel-b.ap-painel-readonly {
+      background: #0f172a;
+    }
+    html[data-theme="dark"] .ap-painel-b.ap-painel-readonly .ap-comp-valor,
+    html[data-theme="dark"] .ap-painel-b.ap-painel-readonly .ap-tipo {
+      background: #1e293b;
+      color: #e2e8f0;
+    }
+    .ap-painel-head {
+      display: flex;
+      gap: 12px;
+      align-items: flex-start;
+      margin-bottom: 12px;
+    }
+    .ap-painel-tag {
+      flex: 0 0 auto;
+      width: 32px;
+      height: 32px;
+      border-radius: 10px;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      font-weight: 800;
+      color: #fff;
+      background: #64748b;
+    }
+    .ap-painel-a .ap-painel-tag { background: #0284c7; }
+    .ap-painel-b .ap-painel-tag { background: #059669; }
+    .ap-painel-head h3 {
+      margin: 0 0 2px !important;
+      font-size: 15px !important;
+      padding: 0 !important;
+      border: none !important;
+    }
+    .ap-painel-head p {
+      margin: 0;
+      font-size: 12px;
+      color: #64748b;
+    }
+    .ap-resumo-comp {
+      font-size: 12px;
+      line-height: 1.35;
+      max-width: 220px;
+    }
+    .ap-resumo-comp.empty { color: #94a3b8; font-style: italic; }
+    .ap-fech-steps {
+      list-style: none;
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      margin: 14px 0 0;
+      padding: 0;
+    }
+    .ap-fech-steps li {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 8px 12px;
+      border-radius: 10px;
+      background: #f1f5f9;
+      color: #64748b;
+      font-size: 13px;
+      font-weight: 600;
+    }
+    .ap-fech-steps li span {
+      width: 22px;
+      height: 22px;
+      border-radius: 50%;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      background: #cbd5e1;
+      color: #0f172a;
+      font-size: 12px;
+    }
+    .ap-fech-steps li.is-active {
+      background: #ecfdf5;
+      color: #047857;
+    }
+    .ap-fech-steps li.is-active span { background: #10b981; color: #fff; }
+    .ap-fech-steps li.is-done {
+      background: #e2e8f0;
+      color: #334155;
+    }
+    .ap-fech-steps li.is-done span { background: #64748b; color: #fff; }
+    .ap-fech-steps li.is-blocked {
+      background: #fef3c7;
+      color: #b45309;
+    }
+    .ap-fech-diag {
+      margin-top: 12px;
+      padding: 12px 14px;
+      border-radius: 10px;
+      border: 1px solid #fcd34d;
+      background: #fffbeb;
+      color: #92400e;
+      font-size: 13px;
+      line-height: 1.45;
+    }
+    .ap-fech-diag.ok {
+      border-color: #6ee7b7;
+      background: #ecfdf5;
+      color: #065f46;
+    }
+    .ap-fech-diag.warn {
+      border-color: #fcd34d;
+      background: #fffbeb;
+      color: #92400e;
+    }
+    .ap-fech-diag.err {
+      border-color: #fca5a5;
+      background: #fef2f2;
+      color: #991b1b;
+    }
+    .ap-fech-tech {
+      margin-top: 12px;
+      border: 1px solid #e2e8f0;
+      border-radius: 10px;
+      padding: 10px 12px;
+      background: #f8fafc;
+    }
+    .ap-fech-tech summary {
+      display: flex;
+      align-items: center;
+      justify-content: flex-start;
+      gap: 8px;
+      cursor: pointer;
+      font-weight: 600;
+      font-size: 13px;
+      color: #475569;
+      list-style: none;
+      text-align: left;
+    }
+    .ap-fech-tech summary i.bx {
+      flex-shrink: 0;
+      font-size: 1.15rem;
+      line-height: 1;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 1.15rem;
+      margin: 0;
+      padding: 0;
+    }
+    .ap-fech-tech summary::-webkit-details-marker { display: none; }
+    .ap-fech-tech[open] summary { margin-bottom: 10px; }
+    .ap-fech-actions .btn-filtro:disabled,
+    #tab-contrato .btn-filtro:disabled {
+      opacity: 0.45;
+      cursor: not-allowed;
+    }
+    .ap-fech-resumo-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+      gap: 10px;
+      margin-top: 8px;
+    }
+    .ap-fech-resumo-item {
+      padding: 10px 12px;
+      border-radius: 10px;
+      background: #f8fafc;
+      border: 1px solid #e2e8f0;
+    }
+    .ap-fech-resumo-item strong {
+      display: block;
+      font-size: 11px;
+      text-transform: uppercase;
+      letter-spacing: 0.03em;
+      color: #64748b;
+      margin-bottom: 4px;
+    }
+    .ap-fech-resumo-item span {
+      font-size: 14px;
+      font-weight: 600;
+      color: #0f172a;
+    }
+    .ap-fech-breakdown {
+      padding: 10px 12px;
+      border-radius: 10px;
+      background: #f8fafc;
+      border: 1px solid #e2e8f0;
+    }
+    .ap-fech-bd-kpis {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+      gap: 8px;
+    }
+    .ap-fech-bd-fixo {
+      margin: 10px 0 0;
+      padding-left: 18px;
+      font-size: 12px;
+      color: #334155;
+      line-height: 1.45;
+    }
+    .ap-fech-bd-fixo strong {
+      display: block;
+      margin: 0 0 4px -18px;
+      font-size: 11px;
+      text-transform: uppercase;
+      letter-spacing: 0.03em;
+      color: #64748b;
+    }
+    .ap-fech-bd-muted { color: #94a3b8; font-weight: 400; }
+    .ap-fech-tabela-uso {
+      display: inline-block;
+      max-width: 100%;
+      font-size: 12px;
+      line-height: 1.35;
+      white-space: normal;
+      word-break: break-word;
+    }
+    .ap-fech-micro-hint {
+      font-size: 12px;
+      opacity: 0.8;
+      color: #64748b;
+    }
+
+    .calculando-overlay {
+      display: none;
+      position: fixed;
+      inset: 0;
+      background: rgba(15, 23, 42, 0.45);
+      z-index: 9999;
+      align-items: center;
+      justify-content: center;
+    }
+    .calculando-content {
+      background: #fff;
+      border-radius: 14px;
+      padding: 28px 32px;
+      text-align: center;
+      max-width: 360px;
+      box-shadow: 0 12px 40px rgba(0,0,0,.18);
+    }
+    .calculando-spinner {
+      width: 42px; height: 42px;
+      border: 3px solid #e2e8f0;
+      border-top-color: #0ea5e9;
+      border-radius: 50%;
+      margin: 0 auto 14px;
+      animation: apspin .8s linear infinite;
+    }
+    @keyframes apspin { to { transform: rotate(360deg); } }
+    .calculando-detalhe { color: #64748b; font-size: 13px; margin: 8px 0 0; }
+
+    /* Dark mode — especificidade no container (sem fundo branco) */
+    html[data-theme="dark"] .atlas-pay-container .atlas-pay-header {
+      border-bottom-color: #334155 !important;
+    }
+    html[data-theme="dark"] .atlas-pay-container .atlas-pay-header h2,
+    html[data-theme="dark"] .atlas-pay-container .atlas-pay-header h2 i,
+    html[data-theme="dark"] .atlas-pay-container .filtros-box h3,
+    html[data-theme="dark"] .atlas-pay-container .stat-value,
+    html[data-theme="dark"] .atlas-pay-container .tabs.tabs-com-icones .tab-btn.active,
+    html[data-theme="dark"] .atlas-pay-container .tabs.tabs-com-icones .tab-btn.active i {
+      color: #e2e8f0 !important;
+    }
+    html[data-theme="dark"] .atlas-pay-container .atlas-pay-info,
+    html[data-theme="dark"] .atlas-pay-container .atlas-pay-info strong,
+    html[data-theme="dark"] .atlas-pay-container .filtros-grid label,
+    html[data-theme="dark"] .atlas-pay-container .stat-card-content h4 {
+      color: #94a3b8 !important;
+    }
+    html[data-theme="dark"] .atlas-pay-container .tabs.tabs-com-icones {
+      border-bottom-color: #334155 !important;
+    }
+    html[data-theme="dark"] .atlas-pay-container .tabs.tabs-com-icones .tab-btn {
+      color: #94a3b8 !important;
+    }
+    html[data-theme="dark"] .atlas-pay-container .ap-agente-bar label {
+      color: #e2e8f0 !important;
+    }
+    html[data-theme="dark"] .atlas-pay-container .ap-agente-bar--strip {
+      background: #0f172a !important;
+      border-color: #334155 !important;
+    }
+    html[data-theme="dark"] .atlas-pay-container .ap-agente-bar--strip .atlas-pay-info {
+      color: #94a3b8 !important;
+    }
+    html[data-theme="dark"] .atlas-pay-container .filtros-box,
+    html[data-theme="dark"] .atlas-pay-container .dashboard-stat-card,
+    html[data-theme="dark"] .atlas-pay-container .estatisticas-table-wrap,
+    html[data-theme="dark"] .ap-modal .estatisticas-table-wrap,
+    html[data-theme="dark"] .ap-modal .grid-container,
+    html[data-theme="dark"] .atlas-pay-container .calculando-content {
+      background: #1e293b !important;
+      border-color: #334155 !important;
+      box-shadow: none !important;
+    }
+    html[data-theme="dark"] .atlas-pay-container .form-control {
+      background: #0f172a !important;
+      border-color: #334155 !important;
+      color: #e2e8f0 !important;
+    }
+    html[data-theme="dark"] .atlas-pay-container .estatisticas-table thead,
+    html[data-theme="dark"] .atlas-pay-container .grid-table thead,
+    html[data-theme="dark"] .ap-modal .estatisticas-table thead,
+    html[data-theme="dark"] .ap-modal .grid-table thead {
+      background: linear-gradient(135deg, #0f172a 0%, #1e3a5f 100%) !important;
+    }
+    html[data-theme="dark"] .atlas-pay-container .estatisticas-table th,
+    html[data-theme="dark"] .atlas-pay-container .grid-table th,
+    html[data-theme="dark"] .ap-modal .estatisticas-table th,
+    html[data-theme="dark"] .ap-modal .grid-table th {
+      background: transparent !important;
+      color: #e2e8f0 !important;
+      border-color: #334155 !important;
+    }
+    html[data-theme="dark"] .atlas-pay-container .estatisticas-table td,
+    html[data-theme="dark"] .atlas-pay-container .grid-table td,
+    html[data-theme="dark"] .ap-modal .estatisticas-table td,
+    html[data-theme="dark"] .ap-modal .grid-table td {
+      color: #e2e8f0 !important;
+      border-color: #334155 !important;
+    }
+    html[data-theme="dark"] .atlas-pay-container .estatisticas-table tbody tr:hover,
+    html[data-theme="dark"] .atlas-pay-container .grid-table tbody tr:hover,
+    html[data-theme="dark"] .ap-modal .estatisticas-table tbody tr:hover,
+    html[data-theme="dark"] .ap-modal .grid-table tbody tr:hover {
+      background: #1e293b !important;
+    }
+    html[data-theme="dark"] .atlas-pay-container .btn-filtro-limpar {
+      background: #334155 !important;
+      color: #e2e8f0 !important;
+      border-color: #475569 !important;
+    }
+    html[data-theme="dark"] .atlas-pay-container .ap-detalhe-pre { color: #e2e8f0 !important; }
+    html[data-theme="dark"] .atlas-pay-container .calculando-content h3 { color: #e2e8f0 !important; }
+    html[data-theme="dark"] .atlas-pay-container .calculando-detalhe { color: #94a3b8 !important; }
+    html[data-theme="dark"] .atlas-pay-container .ap-fech-steps li {
+      background: #0f172a !important;
+      color: #94a3b8 !important;
+    }
+    html[data-theme="dark"] .atlas-pay-container .ap-fech-steps li span {
+      background: #334155 !important;
+      color: #e2e8f0 !important;
+    }
+    html[data-theme="dark"] .atlas-pay-container .ap-fech-steps li.is-active {
+      background: #064e3b !important;
+      color: #a7f3d0 !important;
+    }
+    html[data-theme="dark"] .atlas-pay-container .ap-fech-diag {
+      background: #422006 !important;
+      border-color: #92400e !important;
+      color: #fde68a !important;
+    }
+    html[data-theme="dark"] .atlas-pay-container .ap-fech-diag.ok {
+      background: #064e3b !important;
+      border-color: #047857 !important;
+      color: #a7f3d0 !important;
+    }
+    html[data-theme="dark"] .atlas-pay-container .ap-fech-diag.err {
+      background: #450a0a !important;
+      border-color: #991b1b !important;
+      color: #fecaca !important;
+    }
+    html[data-theme="dark"] .atlas-pay-container .ap-fech-tech {
+      background: #0f172a !important;
+      border-color: #334155 !important;
+    }
+    html[data-theme="dark"] .atlas-pay-container .ap-fech-tech summary { color: #94a3b8 !important; }
+    html[data-theme="dark"] .atlas-pay-container .ap-fech-resumo-item {
+      background: #0f172a !important;
+      border-color: #334155 !important;
+    }
+    html[data-theme="dark"] .atlas-pay-container .ap-fech-resumo-item strong { color: #94a3b8 !important; }
+    html[data-theme="dark"] .atlas-pay-container .ap-fech-resumo-item span { color: #e2e8f0 !important; }
+    html[data-theme="dark"] .atlas-pay-container .ap-fech-breakdown {
+      background: #0f172a !important;
+      border-color: #334155 !important;
+    }
+    html[data-theme="dark"] .atlas-pay-container .ap-fech-bd-fixo { color: #cbd5e1 !important; }
+    html[data-theme="dark"] .atlas-pay-container .ap-fech-bd-fixo strong,
+    html[data-theme="dark"] .atlas-pay-container .ap-fech-bd-muted,
+    html[data-theme="dark"] .atlas-pay-container .ap-fech-micro-hint { color: #94a3b8 !important; }
+    html[data-theme="dark"] .ap-fech-next {
+      background: #0f172a !important;
+      border-color: #334155 !important;
+    }
+    html[data-theme="dark"] .ap-fech-next.err {
+      background: #450a0a !important;
+      border-color: #991b1b !important;
+    }
+    html[data-theme="dark"] .ap-fech-next.warn {
+      background: #422006 !important;
+      border-color: #92400e !important;
+    }
+    html[data-theme="dark"] .ap-fech-next.ok {
+      background: #064e3b !important;
+      border-color: #047857 !important;
+    }
+    html[data-theme="dark"] .ap-fech-next-title { color: #e2e8f0 !important; }
+    html[data-theme="dark"] .ap-fech-next p { color: #cbd5e1 !important; }
+    html[data-theme="dark"] .ap-fech-pend-list li {
+      background: #1e293b !important;
+      border-color: #7f1d1d !important;
+      color: #fecaca !important;
+    }
+    html[data-theme="dark"] .ap-modal-header,
+    html[data-theme="dark"] .ap-modal-actions,
+    html[data-theme="dark"] .ap-modal-msg {
+      background: #1e293b !important;
+    }
+    html[data-theme="dark"] .atlas-pay-container .ap-fech-periodo-bar {
+      background: #0f172a !important;
+      border-color: #334155 !important;
+      color: #e2e8f0 !important;
+    }
+    html[data-theme="dark"] .atlas-pay-container .ap-fech-periodo-bar strong,
+    html[data-theme="dark"] .atlas-pay-container .ap-fech-periodo-bar em,
+    html[data-theme="dark"] .atlas-pay-container .ap-fech-mes-wrap label {
+      color: #94a3b8 !important;
+    }
+    .ap-perm-groups {
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+      margin-top: 10px;
+    }
+    .ap-perm-fold {
+      border: 1px solid #e2e8f0;
+      border-radius: 10px;
+      background: #f8fafc;
+      overflow: hidden;
+    }
+    .ap-perm-fold > summary {
+      list-style: none;
+      cursor: pointer;
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+      padding: 12px 14px;
+      user-select: none;
+    }
+    .ap-perm-fold > summary::-webkit-details-marker { display: none; }
+    .ap-perm-fold-title {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      font-weight: 700;
+      font-size: 14px;
+      color: #0f172a;
+    }
+    .ap-perm-fold-title .bx {
+      font-size: 1.15rem;
+      color: #64748b;
+      transition: transform 0.15s ease;
+    }
+    .ap-perm-fold[open] > summary .ap-perm-fold-title .bx {
+      transform: rotate(90deg);
+    }
+    .ap-perm-fold-meta {
+      font-size: 12px;
+      color: #64748b;
+      padding-left: 22px;
+      line-height: 1.35;
+    }
+    .ap-perm-fold-body {
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      padding: 0 12px 12px;
+      border-top: 1px solid #e2e8f0;
+      padding-top: 12px;
+    }
+    .ap-perm-group {
+      border: 1px solid #e2e8f0;
+      border-radius: 10px;
+      padding: 10px 12px;
+      background: #fff;
+    }
+    .ap-perm-group h5 {
+      margin: 0 0 8px;
+      font-size: 12px;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+      color: #64748b;
+    }
+    .ap-perm-list {
+      list-style: none;
+      margin: 0;
+      padding: 0;
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+    .ap-perm-list li {
+      font-size: 13px;
+      color: #334155;
+      padding: 4px 0;
+      border-bottom: 1px solid #f1f5f9;
+    }
+    .ap-perm-list li:last-child { border-bottom: none; }
+    .ap-perm-chips {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+    }
+    .ap-perm-chip {
+      display: inline-flex;
+      align-items: center;
+      padding: 5px 10px;
+      border-radius: 8px;
+      background: #ecfdf5;
+      border: 1px solid #a7f3d0;
+      max-width: 100%;
+    }
+    .ap-perm-chip strong {
+      font-size: 12px;
+      color: #065f46;
+      font-weight: 700;
+      line-height: 1.25;
+    }
+    .ap-badge.negado { background: #fef2f2; color: #b91c1c; }
+    .ap-badge.perfil_conceder,
+    .ap-badge.perm_conceder,
+    .ap-badge.bootstrap_admin { background: #ecfdf5; color: #047857; }
+    .ap-badge.perfil_revogar,
+    .ap-badge.perm_revogar { background: #fff7ed; color: #c2410c; }
+    html[data-theme="dark"] .ap-perm-fold,
+    html[data-theme="dark"] .atlas-pay-container .ap-perm-group,
+    html[data-theme="dark"] .ap-perm-group {
+      background: #0f172a !important;
+      border-color: #334155 !important;
+    }
+    html[data-theme="dark"] .ap-perm-fold-body { border-top-color: #334155 !important; }
+    html[data-theme="dark"] .ap-perm-fold-title { color: #e2e8f0 !important; }
+    html[data-theme="dark"] .ap-perm-fold-meta,
+    html[data-theme="dark"] .ap-perm-fold-title .bx,
+    html[data-theme="dark"] .ap-perm-group h5 { color: #94a3b8 !important; }
+    html[data-theme="dark"] .ap-perm-list li {
+      color: #e2e8f0 !important;
+      border-bottom-color: #334155 !important;
+    }
+    html[data-theme="dark"] .ap-perm-chip {
+      background: #064e3b !important;
+      border-color: #047857 !important;
+    }
+    html[data-theme="dark"] .ap-perm-chip strong { color: #a7f3d0 !important; }
+    html[data-theme="dark"] .ap-modal-panel {
+      background: #1e293b !important;
+      border: 1px solid #334155;
+    }
+    html[data-theme="dark"] .ap-modal-header { border-bottom-color: #334155 !important; }
+    html[data-theme="dark"] .ap-modal-header h3 { color: #e2e8f0 !important; }
+    html[data-theme="dark"] .ap-modal-close {
+      background: #334155 !important;
+      color: #e2e8f0 !important;
+    }
+    html[data-theme="dark"] .ap-modal-body { color: #cbd5e1 !important; }
+    html[data-theme="dark"] .ap-cob-field {
+      background: #0f172a !important;
+      border-color: #334155 !important;
+    }
+    html[data-theme="dark"] .ap-cob-field strong { color: #94a3b8 !important; }
+    html[data-theme="dark"] .ap-cob-field span { color: #e2e8f0 !important; }
+    html[data-theme="dark"] .ap-modal-actions { border-top-color: #334155 !important; }
+    html[data-theme="dark"] tr.ap-row-sel td { background: #064e3b !important; }
+    html[data-theme="dark"] .atlas-pay-container .ap-quem-card,
+    html[data-theme="dark"] .atlas-pay-container .ap-painel-grupo {
+      background: #0f172a !important;
+      border-color: #334155 !important;
+    }
+    html[data-theme="dark"] .atlas-pay-container .ap-quem-card strong,
+    html[data-theme="dark"] .atlas-pay-container .ap-painel-head h3 { color: #e2e8f0 !important; }
+    html[data-theme="dark"] .atlas-pay-container .ap-quem-card p,
+    html[data-theme="dark"] .atlas-pay-container .ap-painel-head p,
+    html[data-theme="dark"] .atlas-pay-container .ap-comp-hint,
+    html[data-theme="dark"] .atlas-pay-container .ap-resumo-comp.empty { color: #94a3b8 !important; }
+  </style>
+</head>
+<body>
+  <div id="loadingOverlay" class="calculando-overlay" style="display: none;">
+    <div class="calculando-content">
+      <div class="calculando-spinner"></div>
+      <h3>Carregando Atlas Pay</h3>
+      <p>Aguarde enquanto buscamos os dados financeiros…</p>
+      <p class="calculando-detalhe">Isso pode levar alguns segundos.</p>
+    </div>
+  </div>
+
+  <div class="atlas-pay-container">
+    <div class="atlas-pay-header">
+      <div>
+        <h2><i class="bx bx-wallet"></i> Atlas Pay</h2>
+        <p class="atlas-pay-info">
+          Cobranças de <strong>conexão</strong> (motorista → agenciador) e de <strong>uso</strong> (agenciador → Atlas).
+          Na primeira publicação a regra já vem <strong>ligada</strong>. Desligue só se quiser operar sem gerar cobrança.
+          <a href="/modulos/atlas-pay/manual-operacional.html" target="_blank" rel="noopener">Abrir manual</a>.
+        </p>
+      </div>
+      <div class="atlas-pay-header-actions">
+        <a class="atlas-pay-manual-btn" href="/modulos/atlas-pay/manual-operacional.html" target="_blank" rel="noopener">
+          <i class="bx bx-book-open"></i> Manual passo a passo
+        </a>
+      </div>
+    </div>
+
+    <div class="tabs tabs-com-icones" role="tablist">
+      <button type="button" class="tab-btn active" data-tab="resumo"><i class="bx bx-pie-chart-alt-2"></i> <span>Visão geral</span></button>
+      <button type="button" class="tab-btn" data-tab="contrato"><i class="bx bx-file"></i> <span>Contratos</span></button>
+      <button type="button" class="tab-btn" data-tab="fechamento"><i class="bx bx-calendar-check"></i> <span id="apTabFechLabel">Fatura de uso</span></button>
+      <button type="button" class="tab-btn" data-tab="cobrancas"><i class="bx bx-receipt"></i> <span>Cobranças</span></button>
+      <button type="button" class="tab-btn" data-tab="dash-atlas" id="tabBtnDashAtlas" style="display:none"><i class="bx bx-bar-chart-alt-2"></i> <span>Dash Atlas</span></button>
+      <button type="button" class="tab-btn" data-tab="dash-tenant" id="tabBtnDashTenant"><i class="bx bx-line-chart"></i> <span>Meu faturamento</span></button>
+      <button type="button" class="tab-btn" data-tab="permissoes" id="tabBtnPermissoes" style="display:none"><i class="bx bx-shield-quarter"></i> <span>Permissões</span></button>
+    </div>
+
+    <div id="tab-resumo" class="tab-content active">
+      <div class="filtros-box ap-tenant-topo" style="margin-bottom:16px">
+        <h3 style="margin:0 0 12px"><i class="bx bx-buildings"></i> Escopo do painel</h3>
+        <div id="apAgenteHostResumo" class="ap-tenant-slot"></div>
+        <p class="atlas-pay-info" id="apResumoEscopoHint" style="margin:10px 0 0;display:none">
+          Números abaixo são do <strong>tenant selecionado</strong> (não da instalação padrão do login).
+          Conexão = motorista paga <em>esse</em> agenciador. Uso = esse agenciador paga a Atlas.
+          Para o consolidado (quem deve à Atlas), escolha <em>Todos os tenants (painel Atlas)</em>.
+        </p>
+      </div>
+      <div id="apInadBanner" class="filtros-box" style="display:none;margin-bottom:16px;border-left:4px solid #f59e0b">
+        <h3><i class="bx bx-error-circle"></i> Situação financeira</h3>
+        <p class="atlas-pay-info" id="apInadTexto"></p>
+      </div>
+      <div class="wms-stat-grid" id="apKpis"></div>
+      <div class="filtros-box" id="apResumoConexaoBox" style="display:none">
+        <h3><i class="bx bx-user"></i> Faturamento conexão em aberto</h3>
+        <p class="atlas-pay-info" style="margin:0 0 12px">
+          Motorista → agenciador. Inclui a <strong>instalação padrão</strong> quando ela opera a oferta.
+          Clique no tenant para ver as cobranças.
+        </p>
+        <div id="apResumoConexao" class="grid-container estatisticas-table-wrap"></div>
+      </div>
+      <div class="filtros-box" id="apResumoDevedoresBox" style="display:none">
+        <h3><i class="bx bx-wallet"></i> Quem me deve (uso da plataforma)</h3>
+        <p class="atlas-pay-info" style="margin:0 0 12px">
+          Cobranças <strong>abertas</strong> dos agenciadores → Atlas (SaaS). Não inclui conexão de motorista.
+          Clique no tenant para operar aquele cliente.
+        </p>
+        <div id="apResumoDevedores" class="grid-container estatisticas-table-wrap"></div>
+      </div>
+      <div class="filtros-box" id="apContratoResumoBox">
+        <h3><i class="bx bx-check-shield"></i> Contrato vigente</h3>
+        <div id="apContratoResumo" class="atlas-pay-info">Carregando…</div>
+      </div>
+    </div>
+
+    <div id="tab-contrato" class="tab-content">
+      <div class="filtros-box ap-contrato-explica">
+        <h3><i class="bx bx-info-circle"></i> Quem cobra quem neste tenant</h3>
+        <div class="ap-quem-grid">
+          <div class="ap-quem-card ap-quem-a">
+            <strong>A · Conexão</strong>
+            <p><b>Motorista</b> paga o <b>agenciador</b> desta instalação, quando a torre confirma o motorista na carga.</p>
+            <p class="ap-quem-meta">Configure aqui se este tenant é o agenciador que opera as ofertas.</p>
+          </div>
+          <div class="ap-quem-card ap-quem-b">
+            <strong>B · Uso da plataforma</strong>
+            <p>O <b>agenciador (este tenant)</b> paga a <b>Atlas</b> pelo uso do sistema — fechamento mensal na aba Fechamento de uso.</p>
+            <p class="ap-quem-meta">Cobrança SaaS. <b>Só a Atlas</b> (instalação padrão) define preço, regra ligada e inadimplência.</p>
+          </div>
+        </div>
+        <p class="atlas-pay-info" style="margin-top:12px">
+          Cada tenant tem o próprio contrato. O agenciador configura a <strong>Conexão (A)</strong> no tenant dele;
+          o <strong>Uso (B)</strong> é tabela comercial da Atlas — o tenant só consulta.
+        </p>
+        <p id="apAvisoUsoAtlas" class="atlas-pay-info" style="display:none;margin-top:8px;border-left:3px solid #0284c7;padding-left:10px">
+          <strong>Segurança:</strong> neste tenant você edita só a <strong>Conexão (A)</strong>.
+          Uso da plataforma, regra financeira e inadimplência são definidos pela Atlas no painel padrão (operar agente).
+        </p>
+      </div>
+
+      <div class="filtros-box">
+        <h3><i class="bx bx-edit"></i> Publicar nova versão</h3>
+        <p class="atlas-pay-info">
+          Versões antigas <strong>não se editam</strong> (congelam o histórico). Para mudar preço ou regra, publique uma nova versão.
+          Use <em>Ver</em> no histórico e <em>Usar como base</em> para copiar a configuração.
+        </p>
+
+        <div id="apAgenteHostContrato" style="margin-top:16px">
+          <div id="apAgenteBar" class="ap-agente-bar ap-agente-bar--strip" style="display:none">
+            <label for="apAgenteSelect">Tenant</label>
+            <select id="apAgenteSelect" class="form-control" aria-label="Tenant operacional"></select>
+            <p id="apAgenteAtual" class="atlas-pay-info" style="margin:6px 0 0;font-size:13px"></p>
+          </div>
+        </div>
+
+        <div class="filtros-grid" style="margin-top:16px">
+          <div>
+            <label for="cfgRegra">Regra financeira (liga cobranças deste tenant)</label>
+            <select id="cfgRegra" class="form-control">
+              <option value="S" selected>Ligada — gera conexão e permite fechar/cobrar uso</option>
+              <option value="N">Desligada — confirma e opera sem gerar dívida</option>
+            </select>
+          </div>
+          <div>
+            <label for="cfgPol">Se houver inadimplência</label>
+            <select id="cfgPol" class="form-control">
+              <option value="ALERTA">Só alertar</option>
+              <option value="BLOQUEIO">Bloquear operações novas</option>
+            </select>
+          </div>
+          <div id="cfgDhInicioWrap" style="display:none">
+            <label for="cfgDhInicio">Início da vigência (America/Sao_Paulo)</label>
+            <input type="date" id="cfgDhInicio" class="form-control" />
+          </div>
+        </div>
+
+        <div class="ap-grupo" style="margin-top:18px">
+          <div class="ap-painel-grupo ap-painel-a">
+            <div class="ap-painel-head">
+              <span class="ap-painel-tag">A</span>
+              <div>
+                <h3><i class="bx bx-user"></i> Conexão</h3>
+                <p>Deste tenant · motorista → agenciador · na confirmação da torre</p>
+              </div>
+            </div>
+            <p class="ap-comp-note">No máximo <strong>1 linha por tipo</strong> (fixo e %). Tipos diferentes <strong>somam</strong>. Valores em <strong>R$</strong>.</p>
+            <div id="compsConexao"></div>
+            <div class="filtros-actions" style="justify-content:flex-start">
+              <button type="button" class="btn-filtro btn-filtro-limpar" id="btnAddConexao"><i class="bx bx-plus"></i> Componente de conexão</button>
+            </div>
+          </div>
+          <div class="ap-painel-grupo ap-painel-b">
+            <div class="ap-painel-head">
+              <span class="ap-painel-tag">B</span>
+              <div>
+                <h3><i class="bx bx-buildings"></i> Uso da plataforma</h3>
+                <p>Tabela Atlas (default) · agenciador → Atlas · fechamento mensal</p>
+              </div>
+            </div>
+            <p class="ap-comp-note">Não é preço deste tenant. Só a Atlas define. No máximo <strong>1 linha por tipo</strong>; tipos diferentes <strong>somam</strong> no mês.</p>
+            <div id="compsUso"></div>
+            <div class="filtros-actions" style="justify-content:flex-start">
+              <button type="button" class="btn-filtro btn-filtro-limpar" id="btnAddUso"><i class="bx bx-plus"></i> Componente de uso</button>
+            </div>
+          </div>
+        </div>
+        <div class="filtros-actions">
+          <button type="button" class="btn-filtro btn-filtro-novo" id="btnPublicar"><i class="bx bx-save"></i> Publicar versão</button>
+        </div>
+        <div id="msgContrato"></div>
+      </div>
+
+      <div class="filtros-box">
+        <h2 class="form-panel-titulo" style="margin:0"><i class="bx bx-grid-alt" aria-hidden="true"></i> Histórico de versões</h2>
+        <p class="atlas-pay-info" style="margin-top:10px;margin-bottom:12px">
+          Cada linha: <strong>A · Conexão</strong> = deste tenant; <strong>B · Uso</strong> = tabela Atlas (default).
+          Editar abre o detalhe completo.
+        </p>
+        <div id="contratosGridCount" style="padding: 10px 0; color: #666; font-size: 14px; font-weight: 500;">
+          <span id="contratosGridCountText">0 registro(s) encontrado(s)</span>
+        </div>
+        <div id="contratosGrid" class="grid-container"><p class="empty">Carregando…</p></div>
+      </div>
+    </div>
+
+    <div id="tab-fechamento" class="tab-content">
+      <div class="filtros-box ap-tenant-topo">
+        <div class="ap-tenant-topo-grid">
+          <div id="apAgenteHostFechamento" class="ap-tenant-slot"></div>
+          <div class="ap-tenant-topo-main">
+            <h3 id="apFechTitulo"><i class="bx bx-calendar-check"></i> Minha fatura mensal de uso</h3>
+            <p class="atlas-pay-info">
+              Consulta da dívida SaaS (<strong>você → Atlas</strong>). Calcular, aprovar e gerar cobrança
+              são feitos pela <strong>Atlas</strong>. Aqui você só vê o valor e o histórico do mês.
+            </p>
+            <div class="ap-fech-toolbar">
+              <div class="ap-fech-mes-wrap">
+                <label for="fechCompetencia">Mês de referência</label>
+                <select id="fechCompetencia" class="form-control ap-fech-mes" aria-label="Mês de referência"></select>
+                <p class="ap-comp-hint" id="apFechCompHint" style="margin-top:4px">Só meses com fatura ou contrato. Sem contrato, a lista fica vazia.</p>
+              </div>
+              <div class="filtros-actions ap-fech-actions">
+                <button type="button" class="btn-filtro btn-filtro-limpar" id="btnFechPrevia" title="Só consulta, não grava"><i class="bx bx-search"></i> Prévia</button>
+                <button type="button" class="btn-filtro btn-filtro-aplicar" id="btnFechCalcular" title="Grava rascunho" style="display:none"><i class="bx bx-calculator"></i> Calcular e gravar</button>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div id="msgFechamento"></div>
+      </div>
+      <div class="filtros-box" id="apFechGridBox">
+        <h2 class="form-panel-titulo" id="apFechGridTitulo" style="margin:0"><i class="bx bx-grid-alt" aria-hidden="true"></i> Histórico da fatura</h2>
+        <p class="atlas-pay-info" id="apFechGridHint" style="margin-top:10px;margin-bottom:12px">
+          Abra o mês para ver o detalhe do que a Atlas cobrou (somente leitura).
+        </p>
+        <div id="fechamentosGridCount" style="padding: 10px 0; color: #666; font-size: 14px; font-weight: 500;">
+          <span id="fechamentosGridCountText">0 registro(s) encontrado(s)</span>
+        </div>
+        <div id="fechamentosGrid" class="grid-container"><p class="empty">Carregando…</p></div>
+      </div>
+    </div>
+
+    <div id="tab-cobrancas" class="tab-content">
+      <div class="filtros-box ap-tenant-topo">
+        <div class="ap-tenant-topo-grid">
+          <div id="apAgenteHostCobrancas" class="ap-tenant-slot"></div>
+          <div class="ap-tenant-topo-main">
+            <h3><i class="bx bx-filter-alt"></i> Filtros</h3>
+            <form id="formFiltrosCob" class="ap-cob-toolbar" onsubmit="return false;">
+              <div class="filtros-grid">
+                <div>
+                  <label for="filModalidade">Quem → quem</label>
+                  <select id="filModalidade" class="form-control">
+                    <option value="">Todos</option>
+                    <option value="CONEXAO">A · Conexão (motorista → agenciador)</option>
+                    <option value="USO_PLATAFORMA">B · Uso (agenciador → Atlas)</option>
+                  </select>
+                </div>
+                <div>
+                  <label for="filStatus">Status</label>
+                  <select id="filStatus" class="form-control">
+                    <option value="">Todos</option>
+                    <option value="ABERTA" selected>Aberta</option>
+                    <option value="PAGA">Paga</option>
+                    <option value="CANCELADA">Cancelada</option>
+                  </select>
+                </div>
+                <div>
+                  <label for="filQ">Busca</label>
+                  <input id="filQ" class="form-control" placeholder="ID, viagem, convocação, cadastro" />
+                </div>
+              </div>
+              <div class="filtros-actions">
+                <button type="button" class="btn-filtro btn-filtro-limpar" id="btnLimparCob"><i class="bx bx-x"></i> Limpar</button>
+                <button type="submit" class="btn-filtro btn-filtro-aplicar" id="btnFiltrarCob"><i class="bx bx-search"></i> Filtrar</button>
+              </div>
+            </form>
+          </div>
+        </div>
+      </div>
+      <div class="filtros-box">
+        <h2 class="form-panel-titulo" style="margin:0"><i class="bx bx-grid-alt" aria-hidden="true"></i> Cobranças</h2>
+        <p class="atlas-pay-info" style="margin-top:10px;margin-bottom:10px">
+          <strong>A · Conexão</strong> = motorista paga o <em>tenant selecionado</em> (agenciador da viagem).
+          <strong>B · Uso</strong> = o tenant selecionado paga a Atlas (default).
+          Filtro inicial: <strong>Aberta</strong>. Não confundir com a instalação padrão do login.
+        </p>
+        <div id="cobResumoModalidade" class="ap-cob-resumo" aria-live="polite"></div>
+        <div id="cobrancasGridCount" style="padding: 10px 0; color: #666; font-size: 14px; font-weight: 500;">
+          <span id="cobrancasGridCountText">0 registro(s) encontrado(s)</span>
+        </div>
+        <div id="cobrancasGrid" class="grid-container"><p class="empty">Carregando…</p></div>
+      </div>
+    </div>
+
+    <div id="apCobModal" class="ap-modal" style="display:none" role="dialog" aria-modal="true" aria-labelledby="apCobModalTitle">
+      <div class="ap-modal-backdrop" data-close-cob-modal="1"></div>
+      <div class="ap-modal-panel" role="document">
+        <div class="ap-modal-header">
+          <h3 id="apCobModalTitle"><i class="bx bx-receipt"></i> Cobrança <span id="apCobModalId"></span></h3>
+          <button type="button" class="ap-modal-close" id="apCobModalX" aria-label="Fechar" title="Fechar">&times;</button>
+        </div>
+        <div class="ap-modal-body" id="apCobModalBody"></div>
+        <div class="ap-modal-actions" id="apBaixaBox" style="display:none">
+          <input id="baixaMotivo" class="form-control" placeholder="Motivo da baixa/cancelamento" />
+          <button type="button" class="btn-filtro btn-filtro-novo" id="btnBaixar"><i class="bx bx-check"></i> Baixa manual</button>
+          <button type="button" class="btn-filtro btn-filtro-limpar" id="btnCancelarCob" style="display:none"><i class="bx bx-x"></i> Cancelar cobrança</button>
+        </div>
+        <div id="msgBaixa" class="ap-modal-msg"></div>
+      </div>
+    </div>
+
+    <div id="apContratoModal" class="ap-modal" style="display:none" role="dialog" aria-modal="true" aria-labelledby="apContratoModalTitle">
+      <div class="ap-modal-backdrop" data-close-ctr-modal="1"></div>
+      <div class="ap-modal-panel" role="document">
+        <div class="ap-modal-header">
+          <h3 id="apContratoModalTitle"><i class="bx bx-file"></i> Contrato <span id="apContratoModalId"></span></h3>
+          <button type="button" class="ap-modal-close" id="apContratoModalX" aria-label="Fechar" title="Fechar">&times;</button>
+        </div>
+        <div class="ap-modal-body" id="apContratoModalBody"></div>
+        <div class="ap-modal-actions" id="apContratoModalActions">
+          <button type="button" class="btn-filtro btn-filtro-aplicar" id="btnUsarBaseContrato"><i class="bx bx-copy"></i> Usar como base da nova versão</button>
+          <button type="button" class="btn-filtro btn-filtro-limpar" id="btnFecharContratoModal">Fechar</button>
+        </div>
+      </div>
+    </div>
+
+    <div id="apFechModal" class="ap-modal" style="display:none" role="dialog" aria-modal="true" aria-labelledby="apFechModalTitle">
+      <div class="ap-modal-backdrop" data-close-fech-modal="1"></div>
+      <div class="ap-modal-panel ap-modal-panel-wide" role="document">
+        <div class="ap-modal-header">
+          <h3 id="apFechModalTitle"><i class="bx bx-calendar-check"></i> Fechamento <span id="apFechModalId"></span></h3>
+          <button type="button" class="ap-modal-close" id="apFechModalX" aria-label="Fechar" title="Fechar">&times;</button>
+        </div>
+        <ol class="ap-fech-steps" id="fechSteps" aria-label="Passos do fechamento">
+          <li data-step="1"><span>1</span> Prévia</li>
+          <li data-step="2"><span>2</span> Calcular</li>
+          <li data-step="3"><span>3</span> Aprovar</li>
+          <li data-step="4"><span>4</span> Gerar</li>
+        </ol>
+        <div id="fechDiag" class="ap-fech-diag" style="display:none" hidden></div>
+        <div class="ap-modal-body" id="apFechModalBody"></div>
+        <div class="ap-modal-actions ap-fech-actions" id="apFechModalActions">
+          <button type="button" class="btn-filtro btn-filtro-aplicar" id="btnFechIrContratos" style="display:none"><i class="bx bx-file"></i> Ir para Contratos</button>
+          <button type="button" class="btn-filtro btn-filtro-aplicar" id="btnFechCalcularModal" style="display:none" title="Grava rascunho e libera Aprovar"><i class="bx bx-calculator"></i> Calcular e gravar</button>
+          <button type="button" class="btn-filtro btn-filtro-limpar" id="btnFechRecalcular" style="display:none"><i class="bx bx-refresh"></i> Recalcular</button>
+          <button type="button" class="btn-filtro btn-filtro-novo" id="btnFechAprovar" style="display:none"><i class="bx bx-check"></i> Aprovar</button>
+          <button type="button" class="btn-filtro btn-filtro-aplicar" id="btnFechGerar" style="display:none"><i class="bx bx-receipt"></i> Gerar cobrança</button>
+          <button type="button" class="btn-filtro btn-filtro-limpar" id="btnFecharFechModal">Fechar</button>
+        </div>
+        <div id="msgFechamentoModal" class="ap-modal-msg"></div>
+      </div>
+    </div>
+
+    <div id="tab-permissoes" class="tab-content">
+      <div class="filtros-box">
+        <h3><i class="bx bx-info-circle"></i> Suas permissões</h3>
+        <p class="atlas-pay-info" id="apMeuModo">—</p>
+        <p class="atlas-pay-info" style="margin-top:4px;margin-bottom:0">O detalhe fica recolhido — expanda só se precisar conferir item a item.</p>
+        <div id="apMinhasPerms" class="ap-perm-groups"></div>
+      </div>
+      <div class="filtros-box" id="apAdminPermBox">
+        <h2 class="form-panel-titulo" style="margin:0"><i class="bx bx-grid-alt" aria-hidden="true"></i> Usuários do tenant</h2>
+        <p class="atlas-pay-info" style="margin-top:10px;margin-bottom:12px">
+          Editar abre concessão de perfil ou ajuste pontual (override) em janela.
+        </p>
+        <div class="filtros-grid">
+          <div>
+            <label for="filPermUser">Buscar login</label>
+            <input id="filPermUser" class="form-control" placeholder="ex. admin" />
+          </div>
+        </div>
+        <div class="filtros-actions">
+          <button type="button" class="btn-filtro btn-filtro-limpar" id="btnLimparPerm"><i class="bx bx-x"></i> Limpar</button>
+          <button type="button" class="btn-filtro btn-filtro-aplicar" id="btnFiltrarPerm"><i class="bx bx-search"></i> Filtrar</button>
+        </div>
+        <div id="permUsersGridCount" style="padding: 10px 0; color: #666; font-size: 14px; font-weight: 500;">
+          <span id="permUsersGridCountText">0 registro(s) encontrado(s)</span>
+        </div>
+        <div id="permUsersGrid" class="grid-container"><p class="empty">Carregando…</p></div>
+      </div>
+      <div class="filtros-box" id="apPermAuditBox">
+        <h2 class="form-panel-titulo" style="margin:0"><i class="bx bx-grid-alt" aria-hidden="true"></i> Histórico recente</h2>
+        <div id="permAuditGridCount" style="padding: 10px 0; color: #666; font-size: 14px; font-weight: 500;">
+          <span id="permAuditGridCountText">0 registro(s) encontrado(s)</span>
+        </div>
+        <div id="permAuditGrid" class="grid-container"><p class="empty">Carregando…</p></div>
+      </div>
+    </div>
+
+    <div id="tab-dash-atlas" class="tab-content">
+      <div class="filtros-box ap-tenant-topo" style="margin-bottom:16px">
+        <h3 style="margin:0 0 12px"><i class="bx bx-bar-chart-alt-2"></i> Dash comercial Atlas</h3>
+        <div id="apAgenteHostDashAtlas" class="ap-tenant-slot"></div>
+        <p class="atlas-pay-info" style="margin:10px 0 0">
+          Conexão da instalação padrão, faturamento dos clientes e uso SaaS.
+          Escolha um tenant para filtrar o ranking de motoristas; <em>Todos</em> mostra a visão completa.
+        </p>
+      </div>
+      <div class="wms-stat-grid" id="apDashAtlasKpis"></div>
+      <div class="filtros-box">
+        <h2 class="form-panel-titulo" style="margin:0"><i class="bx bx-grid-alt" aria-hidden="true"></i> Ranking por agenciador</h2>
+        <p class="atlas-pay-info" style="margin-top:10px;margin-bottom:12px">
+          Conexão = motorista → agenciador · Uso = agenciador → Atlas
+        </p>
+        <div id="apDashAtlasRanking" class="grid-container estatisticas-table-wrap"><p class="empty">Carregando…</p></div>
+      </div>
+      <div class="filtros-box">
+        <h2 class="form-panel-titulo" style="margin:0"><i class="bx bx-user" aria-hidden="true"></i> Top motoristas</h2>
+        <p class="atlas-pay-info" style="margin-top:10px;margin-bottom:12px" id="apDashAtlasTopHint">
+          Quem mais gerou conexão (pago + aberto). Filtra pelo tenant do seletor.
+        </p>
+        <div id="apDashAtlasTopMot" class="grid-container estatisticas-table-wrap"><p class="empty">Carregando…</p></div>
+      </div>
+    </div>
+
+    <div id="tab-dash-tenant" class="tab-content">
+      <div class="filtros-box ap-tenant-topo" style="margin-bottom:16px">
+        <h3 style="margin:0 0 12px"><i class="bx bx-line-chart"></i> Meu faturamento</h3>
+        <div id="apAgenteHostDashTenant" class="ap-tenant-slot"></div>
+        <p class="atlas-pay-info" style="margin:10px 0 0" id="apDashMeuHint">
+          Conexão que você recebe dos motoristas e uso que paga à Atlas. Top motoristas para a próxima campanha.
+        </p>
+      </div>
+      <div class="wms-stat-grid" id="apDashMeuKpis"></div>
+      <div class="filtros-box">
+        <h2 class="form-panel-titulo" style="margin:0"><i class="bx bx-user" aria-hidden="true"></i> Top motoristas · quem mais pagou</h2>
+        <p class="atlas-pay-info" style="margin-top:10px;margin-bottom:12px">
+          Prioridade para convocação / campanha. Base: cobranças de conexão.
+        </p>
+        <div id="apDashMeuTopMot" class="grid-container estatisticas-table-wrap"><p class="empty">Carregando…</p></div>
+      </div>
+    </div>
+  </div>
+
+    <div id="apPermModal" class="ap-modal" style="display:none" role="dialog" aria-modal="true" aria-labelledby="apPermModalTitle">
+      <div class="ap-modal-backdrop" data-close-perm-modal="1"></div>
+      <div class="ap-modal-panel ap-modal-panel-wide" role="document">
+        <div class="ap-modal-header">
+          <h3 id="apPermModalTitle"><i class="bx bx-shield-quarter"></i> Permissões · <span id="apPermAlvo">—</span></h3>
+          <button type="button" class="ap-modal-close" id="apPermModalX" aria-label="Fechar" title="Fechar">&times;</button>
+        </div>
+        <div class="ap-modal-body">
+          <div class="ap-fech-sec">
+            <h4>Permissões efetivas</h4>
+            <div id="apPermEfetivasDet" class="ap-perm-groups"></div>
+          </div>
+          <div class="ap-grupo" style="margin-top:16px">
+            <div class="ap-painel-grupo ap-painel-a">
+              <div class="ap-painel-head">
+                <span class="ap-painel-tag">1</span>
+                <div>
+                  <h3>Perfil</h3>
+                  <p>Pacote de permissões (recomendado)</p>
+                </div>
+              </div>
+              <div class="ap-field">
+                <label for="selPerfil">Perfil a conceder</label>
+                <select id="selPerfil" class="form-control"></select>
+              </div>
+              <div class="filtros-actions" style="justify-content:flex-start;margin-top:10px">
+                <button type="button" class="btn-filtro btn-filtro-novo" id="btnConcederPerfil"><i class="bx bx-plus"></i> Conceder perfil</button>
+                <button type="button" class="btn-filtro btn-filtro-limpar" id="btnBootstrapAdmin" title="Somente na primeira configuração do tenant"><i class="bx bx-shield"></i> Ativar admin inicial</button>
+              </div>
+            </div>
+            <div class="ap-painel-grupo ap-painel-b">
+              <div class="ap-painel-head">
+                <span class="ap-painel-tag">2</span>
+                <div>
+                  <h3>Ajuste pontual</h3>
+                  <p>Override em cima do perfil</p>
+                </div>
+              </div>
+              <div class="ap-field">
+                <label for="selPermOv">Permissão</label>
+                <select id="selPermOv" class="form-control"></select>
+              </div>
+              <div class="ap-field">
+                <label for="selEfeito">Efeito</label>
+                <select id="selEfeito" class="form-control">
+                  <option value="C">Conceder extra</option>
+                  <option value="R">Revogar (bloquear)</option>
+                </select>
+              </div>
+              <div class="filtros-actions" style="justify-content:flex-start;margin-top:10px">
+                <button type="button" class="btn-filtro btn-filtro-aplicar" id="btnAplicarOv"><i class="bx bx-check"></i> Aplicar ajuste</button>
+              </div>
+            </div>
+          </div>
+          <div id="msgPerm" class="ap-modal-msg"></div>
+        </div>
+        <div class="ap-modal-actions">
+          <button type="button" class="btn-filtro btn-filtro-limpar" id="btnFecharPermModal">Fechar</button>
+        </div>
+      </div>
+    </div>
+  <script src="/js/utils.js"></script>
+  <script src="/js/grid-editor.js"></script>
+  <script src="js/script.js?v=20261127payDash1"></script>
+</body>
+</html>

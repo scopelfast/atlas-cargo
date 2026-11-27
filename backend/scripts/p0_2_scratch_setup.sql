@@ -1,0 +1,113 @@
+-- Setup mínimo para atlas_pay_p0_scratch (NÃO usar em atlas_cargo_prd).
+-- Espelha FIN_* nuas do script_db + SAAS_CLIENTE mínimo sem EMPRESA.
+
+CREATE TABLE IF NOT EXISTS "SAAS_PLANO" (
+  "CD_PLANO" smallint PRIMARY KEY,
+  "NM_PLANO" varchar(100) NOT NULL
+);
+INSERT INTO "SAAS_PLANO" ("CD_PLANO", "NM_PLANO")
+SELECT 1, 'Scratch'
+WHERE NOT EXISTS (SELECT 1 FROM "SAAS_PLANO" WHERE "CD_PLANO" = 1);
+
+CREATE TABLE IF NOT EXISTS "SAAS_CLIENTE_CONTRATANTE" (
+  "TENANT_ID" varchar(64) NOT NULL PRIMARY KEY,
+  "NM_CLIENTE" varchar(200) NOT NULL,
+  "CD_PLANO" smallint NOT NULL REFERENCES "SAAS_PLANO" ("CD_PLANO"),
+  "FGACTIVE" char(1) NOT NULL DEFAULT 'S'
+);
+INSERT INTO "SAAS_CLIENTE_CONTRATANTE" ("TENANT_ID", "NM_CLIENTE", "CD_PLANO", "FGACTIVE")
+SELECT 'scratch-tenant', 'Tenant Scratch P0', 1, 'S'
+WHERE NOT EXISTS (SELECT 1 FROM "SAAS_CLIENTE_CONTRATANTE" WHERE "TENANT_ID" = 'scratch-tenant');
+
+CREATE TABLE IF NOT EXISTS "FIN_CONTRATO" (
+  "ID" bigserial PRIMARY KEY,
+  "TENANT_ID" varchar(64) NOT NULL,
+  "VERSAO" integer NOT NULL DEFAULT 1,
+  "DH_INICIO" timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  "DH_FIM" timestamp NULL,
+  "FG_REGRA_ATIVA" char(1) NOT NULL DEFAULT 'N',
+  "POLITICA_INADIMPLENCIA" varchar(20) NOT NULL DEFAULT 'ALERTA',
+  "FGACTIVE" char(1) NOT NULL DEFAULT 'S',
+  "DHINCLUSAO" timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  "SGUSERINCLUSAO" varchar(50) NULL,
+  "DHMAINTENANCE" timestamp NULL,
+  "SGUSER" varchar(50) NULL
+);
+
+CREATE TABLE IF NOT EXISTS "FIN_CONTRATO_COMPONENTE" (
+  "ID" bigserial PRIMARY KEY,
+  "ID_CONTRATO" bigint NOT NULL REFERENCES "FIN_CONTRATO" ("ID") ON DELETE CASCADE,
+  "GRUPO" varchar(20) NOT NULL,
+  "TIPO" varchar(40) NOT NULL,
+  "VALOR_CENTAVOS" bigint NULL,
+  "PERCENTUAL" numeric(9, 4) NULL,
+  "FG_ATIVO" char(1) NOT NULL DEFAULT 'S',
+  "ORDEM" smallint NOT NULL DEFAULT 0,
+  "DHINCLUSAO" timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  "SGUSERINCLUSAO" varchar(50) NULL
+);
+
+CREATE TABLE IF NOT EXISTS "FIN_COBRANCA" (
+  "ID" bigserial PRIMARY KEY,
+  "MODALIDADE" varchar(20) NOT NULL,
+  "TENANT_ID" varchar(64) NOT NULL,
+  "PAGADOR_TIPO" varchar(20) NOT NULL,
+  "PAGADOR_CDCADASTRO" numeric(15, 0) NULL,
+  "PAGADOR_TENANT_ID" varchar(64) NULL,
+  "BENEFICIARIO_TENANT_ID" varchar(64) NOT NULL,
+  "IDVIAGEM" numeric(15, 0) NULL,
+  "IDCONVOCACAO" integer NULL,
+  "ID_CICLO_CONFIRMACAO" varchar(64) NOT NULL,
+  "ID_CONTRATO" bigint NULL,
+  "VERSAO_CONTRATO" integer NULL,
+  "VALOR_CENTAVOS" bigint NOT NULL,
+  "MOEDA" varchar(3) NOT NULL DEFAULT 'BRL',
+  "MEMORIA_CALCULO" text NULL,
+  "STATUS" varchar(20) NOT NULL DEFAULT 'ABERTA',
+  "DH_CRIACAO" timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  "SGUSER_CRIACAO" varchar(50) NULL,
+  "DH_VENCIMENTO" timestamp NULL,
+  "DH_BAIXA" timestamp NULL,
+  "SGUSER_BAIXA" varchar(50) NULL,
+  "DS_BAIXA" varchar(400) NULL,
+  "DH_CANCELAMENTO" timestamp NULL,
+  "SGUSER_CANCELAMENTO" varchar(50) NULL,
+  "DS_CANCELAMENTO" varchar(400) NULL,
+  "ORIGEM_CANCELAMENTO" varchar(40) NULL,
+  "GATEWAY_PROVIDER" varchar(40) NULL,
+  "GATEWAY_CHARGE_ID" varchar(120) NULL,
+  "PIX_TXID" varchar(120) NULL,
+  "PIX_COPIA_COLA" text NULL,
+  "PIX_QR_URL" text NULL
+);
+
+CREATE TABLE IF NOT EXISTS "FIN_COBRANCA_EVENTO" (
+  "ID" bigserial PRIMARY KEY,
+  "ID_COBRANCA" bigint NOT NULL REFERENCES "FIN_COBRANCA" ("ID") ON DELETE RESTRICT,
+  "TIPO" varchar(40) NOT NULL,
+  "STATUS_ANTERIOR" varchar(20) NULL,
+  "STATUS_NOVO" varchar(20) NULL,
+  "SGUSER" varchar(50) NULL,
+  "DH_EVENTO" timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  "DETALHE" varchar(500) NULL,
+  "IP" varchar(64) NULL
+);
+
+-- Roles de app fictícias para D13 (sem privilégios especiais; NÃO conceder atlas_fin_manutencao)
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'atlas_pay_scratch_app') THEN
+    CREATE ROLE atlas_pay_scratch_app NOSUPERUSER NOCREATEDB NOCREATEROLE NOINHERIT LOGIN PASSWORD 'scratch_only_local';
+  END IF;
+  -- Nome canônico de app usado no diagnóstico D13 (espelha app_user de produção, só no scratch)
+  IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'app_user') THEN
+    CREATE ROLE app_user NOSUPERUSER NOCREATEDB NOCREATEROLE NOINHERIT LOGIN PASSWORD 'scratch_only_local';
+  END IF;
+END $$;
+
+GRANT CONNECT ON DATABASE atlas_pay_p0_scratch TO atlas_pay_scratch_app;
+GRANT CONNECT ON DATABASE atlas_pay_p0_scratch TO app_user;
+GRANT USAGE ON SCHEMA public TO atlas_pay_scratch_app;
+GRANT USAGE ON SCHEMA public TO app_user;
+GRANT SELECT ON ALL TABLES IN SCHEMA public TO atlas_pay_scratch_app;
+GRANT SELECT ON ALL TABLES IN SCHEMA public TO app_user;

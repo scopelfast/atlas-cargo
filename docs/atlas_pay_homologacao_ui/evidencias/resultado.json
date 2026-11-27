@@ -1,0 +1,77 @@
+{
+  "gerado_em": "2026-11-27T13:06:45.957Z",
+  "base": "http://localhost:8083",
+  "passos": [
+    {
+      "step": "login",
+      "ok": true,
+      "detail": "dashboard"
+    },
+    {
+      "step": "aba Visão geral",
+      "ok": true,
+      "detail": "atlas_pay_homologacao_ui/evidencias/01-visao-geral.png"
+    },
+    {
+      "step": "aba Contratos",
+      "ok": true,
+      "detail": "atlas_pay_homologacao_ui/evidencias/02-contratos.png"
+    },
+    {
+      "step": "publicar contrato regra N",
+      "ok": true,
+      "detail": "atlas_pay_homologacao_ui/evidencias/02b-contratos-apos-publicar-N.png | Versão publicada. Regra ativa = N."
+    },
+    {
+      "step": "aba Fechamento de uso",
+      "ok": true,
+      "detail": "atlas_pay_homologacao_ui/evidencias/03-fechamento-uso.png"
+    },
+    {
+      "step": "prévia fechamento",
+      "ok": true,
+      "detail": "atlas_pay_homologacao_ui/evidencias/03b-fechamento-previa.png"
+    },
+    {
+      "step": "calcular fechamento (regra N)",
+      "ok": true,
+      "detail": "atlas_pay_homologacao_ui/evidencias/03c-fechamento-calcular.png | Fechamento gravado: COM_EXCECOES"
+    },
+    {
+      "step": "controles aprovar/gerar presentes",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "step": "aba Cobranças + filtrar",
+      "ok": true,
+      "detail": "atlas_pay_homologacao_ui/evidencias/04-cobrancas.png"
+    },
+    {
+      "step": "detalhe/eventos cobrança",
+      "ok": true,
+      "detail": "atlas_pay_homologacao_ui/evidencias/04b-cobranca-detalhe.png"
+    },
+    {
+      "step": "controles baixa/cancelar presentes",
+      "ok": true,
+      "detail": "baixa=true cancelar=true"
+    },
+    {
+      "step": "aba Permissões",
+      "ok": true,
+      "detail": "atlas_pay_homologacao_ui/evidencias/05-permissoes.png | widgets=2"
+    },
+    {
+      "step": "isolamento consulta cobrança inexistente/alheia",
+      "ok": true,
+      "detail": "404"
+    }
+  ],
+  "falhas": [],
+  "resumo": {
+    "total": 13,
+    "ok": 13,
+    "fail": 0
+  }
+}
